@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EduChat - 学校⇔プランナー連携</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* ローディングアニメーション用 */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
+</head>
+<body class="bg-gray-50 h-screen flex flex-col font-sans text-gray-800">
+
+    <header class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center z-10">
+        <div class="flex items-center gap-3">
+            <i class="fa-solid fa-school text-2xl"></i>
+            <h1 class="text-xl font-bold">EduChat <span class="text-sm font-normal opacity-80">for Teachers & Planners</span></h1>
+        </div>
+        <div class="flex items-center gap-4">
+            <div class="bg-blue-700 rounded-full px-4 py-1 text-sm font-medium flex items-center gap-2">
+                <i class="fa-solid fa-user-tie"></i> プランナーモード
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 flex overflow-hidden">
+
+        <aside class="w-1/3 max-w-sm bg-white border-r border-gray-200 flex flex-col">
+            <div class="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+                <h2 class="font-semibold text-gray-600"><i class="fa-solid fa-list-ul mr-2"></i>相談リスト</h2>
+                <button onclick="loadInitialData()" class="text-blue-500 hover:text-blue-700 text-sm"><i class="fa-solid fa-rotate-right"></i> 更新</button>
+            </div>
+            <div id="thread-list" class="flex-1 overflow-y-auto no-scrollbar p-2">
+                <div class="flex justify-center items-center h-full text-gray-400 flex-col gap-2">
+                    <div class="loader"></div>
+                    <span class="text-sm">データを読み込み中...</span>
+                </div>
+            </div>
+        </aside>
+
+        <section class="flex-1 flex flex-col bg-slate-50 relative">
+            <div class="bg-white p-3 border-b border-gray-200 flex justify-between items-center shadow-sm z-10">
+                <div>
+                    <h3 id="current-thread-title" class="font-bold text-lg">スレッドを選択してください</h3>
+                </div>
+                <button onclick="callGeminiSummary()" class="bg-gradient-to-r from-purple-500 to-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md hover:opacity-90 transition flex items-center gap-2">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> AIで要約
+                </button>
+            </div>
+
+            <div id="chat-timeline" class="flex-1 overflow-y-auto p-4 space-y-6">
+                <div class="flex justify-center items-center h-full text-gray-400">
+                    <span class="text-sm">左側のリストから相談を選択してください</span>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 border-t border-gray-200">
+                <div class="flex items-center gap-2 max-w-4xl mx-auto">
+                    <input type="text" id="message-input" placeholder="メッセージを入力..."
+                        class="flex-1 bg-gray-100 border-none rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        onkeypress="if(event.key === 'Enter') sendRealMessage()">
+                    <button onclick="sendRealMessage()" id="send-button" class="bg-blue-500 hover:bg-blue-600 text-white rounded-full w-10 h-10 flex items-center justify-center shadow-md transition shrink-0">
+                        <i class="fa-solid fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div id="ai-modal" class="hidden absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div class="bg-white rounded-xl shadow-2xl p-6 w-[90%] max-w-lg">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-lg text-purple-700 flex items-center gap-2">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> AI事例要約（プレビュー）
+                        </h3>
+                        <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
+                            <i class="fa-solid fa-xmark text-xl"></i>
+                        </button>
+                    </div>
+                    <div id="ai-content" class="bg-gray-50 p-4 rounded-lg border border-gray-200 text-sm text-gray-700 space-y-2 h-64 overflow-y-auto">
+                    </div>
+                    <div class="mt-4 flex justify-end gap-2">
+                        <button onclick="closeModal()" class="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition">閉じる</button>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <script>
+        // ==========================================
+        // ⚠️ 超重要：ここにGASで発行したURLを貼り付けます
+        // ==========================================
+        const GAS_API_URL = "https://script.google.com/macros/s/AKfycbxiK9JJXIrhaCJzGCwXTlk62_wsxF6gqXhWITBc7WpYQ9yTdGy6aIDo9OcpRA8ofosS2g/exec";
+        
+        let currentThreadId = null; // 現在選択されているスレッド
+        let appData = { consultations: [], messages: [] }; // 取得した全データを保持する変数
+
+        window.onload = () => {
+            if(GAS_API_URL.includes("ここに")) {
+                alert("GAS_API_URL が設定されていません！");
+                return;
+            }
+            loadInitialData();
+        };
+
+        // 1. GASから初期データ(GET)を取得する処理
+        async function loadInitialData() {
+            const threadList = document.getElementById('thread-list');
+            threadList.innerHTML = `<div class="flex justify-center items-center h-full flex-col gap-2"><div class="loader"></div><span class="text-sm">読込中...</span></div>`;
+            
+            try {
+                const response = await fetch(GAS_API_URL);
+                const result = await response.json();
+                
+                if(result.status === "success") {
+                    // 取得したデータを変数に保存
+                    appData.consultations = result.data.consultations || [];
+                    appData.messages = result.data.messages || [];
+                    
+                    // スレッド一覧を描画
+                    renderThreadList(appData.consultations);
+                } else {
+                    alert("データ取得エラー: " + result.message);
+                }
+            } catch (error) {
+                console.error("通信エラー:", error);
+                threadList.innerHTML = `<div class="text-red-500 text-center p-4">データの取得に失敗しました</div>`;
+            }
+        }
+
+        // 2. スレッド一覧を画面に描画する関数
+        function renderThreadList(consultations) {
+            const threadList = document.getElementById('thread-list');
+            threadList.innerHTML = ''; 
+            
+            if(consultations.length === 0) {
+                threadList.innerHTML = `<div class="text-gray-500 text-center p-4 text-sm">相談データがありません。</div>`;
+                return;
+            }
+
+            consultations.forEach(cons => {
+                // onclick="selectThread('スレッドID')" を追加して、クリックできるようにしました！
+                const html = `
+                <div onclick="selectThread('${cons['スレッドID']}')" class="p-3 border-b border-gray-100 cursor-pointer hover:bg-blue-50 transition mb-1 rounded">
+                    <div class="flex justify-between items-start mb-1">
+                        <span class="font-bold text-sm text-gray-700">${cons['タイトル/概要'] || 'タイトルなし'}</span>
+                    </div>
+                    <div class="text-xs text-gray-500 mb-1">スレッドID: ${cons['スレッドID']}</div>
+                </div>
+                `;
+                threadList.insertAdjacentHTML('beforeend', html);
+            });
+        }
+
+        // 3. 【新規】スレッドをクリックした時の処理（チャット履歴の切り替え）
+        function selectThread(threadId) {
+            currentThreadId = threadId;
+            
+            // ヘッダーのタイトルを更新
+            const targetThread = appData.consultations.find(c => c['スレッドID'] === threadId);
+            document.getElementById('current-thread-title').textContent = targetThread ? targetThread['タイトル/概要'] : '不明なスレッド';
+
+            // このスレッドに紐づくメッセージだけを抽出
+            const threadMessages = appData.messages.filter(m => m['紐づくスレッドID'] === threadId);
+            
+            const timeline = document.getElementById('chat-timeline');
+            timeline.innerHTML = ''; // 一旦クリア
+
+            if (threadMessages.length === 0) {
+                timeline.innerHTML = `<div class="flex justify-center items-center h-full text-gray-400"><span class="text-sm">まだメッセージがありません</span></div>`;
+                return;
+            }
+
+            // メッセージを1つずつ画面に追加
+            threadMessages.forEach(msg => {
+                // スプレッドシートの日時データを見やすくフォーマット
+                const dateObj = new Date(msg['送信日時']);
+                const timeString = isNaN(dateObj) ? '' : dateObj.toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'});
+                
+                // 先生かプランナーかで左右を分ける
+                const isPlanner = msg['送信者区分'] === 'プランナー';
+                const senderName = isPlanner ? 'あなた (プランナー)' : `先生 (${msg['送信者ID']})`;
+                
+                appendMessageToTimeline(msg['メッセージ内容'], senderName, isPlanner, timeString);
+            });
+        }
+
+        // 4. メッセージを送信(POST)する処理
+        async function sendRealMessage() {
+            if (!currentThreadId) {
+                alert("左側のリストからスレッドを選択してください。");
+                return;
+            }
+
+            const input = document.getElementById('message-input');
+            const button = document.getElementById('send-button');
+            const text = input.value.trim();
+            if (!text) return;
+
+            input.disabled = true;
+            button.disabled = true;
+            button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
+            const payload = {
+                action: "sendMessage",
+                payload: {
+                    threadId: currentThreadId,
+                    senderType: "プランナー",
+                    senderId: "PLN_001",
+                    messageContent: text
+                }
+            };
+
+            try {
+                const response = await fetch(GAS_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify(payload)
+                });
+                
+                const result = await response.json();
+                if(result.status === "success") {
+                    // 送信成功したら画面にすぐ追加
+                    const timeString = new Date().toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'});
+                    appendMessageToTimeline(text, "あなた (プランナー)", true, timeString);
+                    input.value = '';
+                    
+                    // 内部データ（appData）にも追加しておく（再読み込みなしでAIに渡せるようにするため）
+                    appData.messages.push({
+                        '紐づくスレッドID': currentThreadId,
+                        '送信者区分': 'プランナー',
+                        '送信者ID': 'PLN_001',
+                        'メッセージ内容': text,
+                        '送信日時': new Date().toISOString()
+                    });
+                }
+            } catch (error) {
+                alert("通信エラーが発生しました");
+            } finally {
+                input.disabled = false;
+                button.disabled = false;
+                button.innerHTML = '<i class="fa-solid fa-paper-plane"></i>';
+                input.focus();
+            }
+        }
+
+        // 5. Geminiの要約を呼び出す(POST)処理 【本物の履歴を送るように修正！】
+        async function callGeminiSummary() {
+            if (!currentThreadId) {
+                alert("スレッドを選択してください。");
+                return;
+            }
+
+            // 現在選択されているスレッドのメッセージを抽出して、1つのテキストに結合する
+            const threadMessages = appData.messages.filter(m => m['紐づくスレッドID'] === currentThreadId);
+            if (threadMessages.length === 0) {
+                alert("要約するメッセージがありません。");
+                return;
+            }
+
+            // AIに渡すためのチャットテキストを作成（例: "先生: 〜〜 \n プランナー: 〜〜"）
+            let realChatHistory = "";
+            threadMessages.forEach(msg => {
+                realChatHistory += `${msg['送信者区分']}: ${msg['メッセージ内容']}\n`;
+            });
+
+            const modal = document.getElementById('ai-modal');
+            const content = document.getElementById('ai-content');
+            
+            modal.classList.remove('hidden');
+            content.innerHTML = `<div class="flex flex-col justify-center items-center h-full text-purple-500 gap-3">
+                                    <div class="loader"></div>
+                                    <span class="text-sm font-bold animate-pulse">Gemini 2.5 Flashで事例を自動生成中...</span>
+                                 </div>`;
+            
+            const payload = {
+                action: "generateSummary",
+                payload: { chatHistory: realChatHistory } // ★ここが本物のチャット履歴になりました！
+            };
+
+            try {
+                const response = await fetch(GAS_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify(payload)
+                });
+                
+                const result = await response.json();
+                if(result.status === "success") {
+                    content.innerHTML = result.data.summaryText;
+                } else {
+                    content.innerHTML = `<div class="text-red-500 p-4">エラー: ${result.message}</div>`;
+                }
+            } catch (error) {
+                content.innerHTML = `<div class="text-red-500 p-4">通信エラーが発生しました</div>`;
+            }
+        }
+
+        // チャットの吹き出しを画面に描画する共通関数
+        function appendMessageToTimeline(text, senderName, isPlanner, timeString) {
+            const timeline = document.getElementById('chat-timeline');
+            if(timeline.innerText.includes("メッセージがありません") || timeline.innerText.includes("選択してください")) {
+                timeline.innerHTML = ''; 
+            }
+
+            // 先生(左)とプランナー(右)でHTMLの構造を分ける
+            let msgHtml = "";
+            if (isPlanner) {
+                msgHtml = `
+                    <div class="flex items-end gap-2 justify-end mb-6 animate-[fadeIn_0.3s_ease-out]">
+                        <div class="max-w-[70%] flex flex-col items-end">
+                            <div class="text-xs text-gray-500 mb-1 mr-1">${senderName} - ${timeString}</div>
+                            <div class="bg-blue-500 text-white p-3 rounded-2xl rounded-br-none shadow-sm text-sm whitespace-pre-wrap">${text}</div>
+                        </div>
+                        <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
+                            <i class="fa-solid fa-user-tie"></i>
+                        </div>
+                    </div>
+                `;
+            } else {
+                msgHtml = `
+                    <div class="flex items-end gap-2 mb-6 animate-[fadeIn_0.3s_ease-out]">
+                        <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 font-bold text-sm shrink-0">先</div>
+                        <div class="max-w-[70%]">
+                            <div class="text-xs text-gray-500 mb-1 ml-1">${senderName} - ${timeString}</div>
+                            <div class="bg-white p-3 rounded-2xl rounded-bl-none shadow-sm border border-gray-100 text-sm whitespace-pre-wrap">${text}</div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            timeline.insertAdjacentHTML('beforeend', msgHtml);
+            timeline.scrollTop = timeline.scrollHeight;
+        }
+
+        function closeModal() {
+            document.getElementById('ai-modal').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
