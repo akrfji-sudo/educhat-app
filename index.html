@@ -44,19 +44,13 @@
     <main class="flex-1 flex overflow-hidden">
         <aside class="w-1/3 max-w-sm bg-white border-r border-gray-200 flex flex-col">
             <div class="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-                <h2 class="font-semibold text-gray-600 flex items-center gap-2">
-                    <i class="fa-solid fa-list-ul"></i> 相談リスト
-                </h2>
+                <h2 class="font-semibold text-gray-600 flex items-center gap-2"><i class="fa-solid fa-list-ul"></i> 相談リスト</h2>
                 <div class="flex gap-3">
                     <button onclick="loadInitialData()" class="text-gray-500 hover:text-blue-700 text-sm"><i class="fa-solid fa-rotate-right"></i></button>
                     <button id="new-thread-btn" onclick="openNewThreadModal()" class="hidden text-white bg-green-500 hover:bg-green-600 px-2 py-1 rounded text-xs font-bold shadow transition">＋ 新規</button>
                 </div>
             </div>
-            <div id="thread-list" class="flex-1 overflow-y-auto no-scrollbar p-2">
-                <div class="flex justify-center items-center h-full text-gray-400 flex-col gap-2">
-                    <div class="loader"></div><span class="text-sm">データを読み込み中...</span>
-                </div>
-            </div>
+            <div id="thread-list" class="flex-1 overflow-y-auto no-scrollbar p-2"></div>
         </aside>
 
         <section class="flex-1 flex flex-col bg-slate-50 relative">
@@ -84,8 +78,11 @@
                         <button onclick="closeModal('ai-modal')" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
                     </div>
                     <div id="ai-content" class="bg-gray-50 p-4 rounded-lg border border-gray-200 text-sm text-gray-700 space-y-2 h-64 overflow-y-auto"></div>
-                    <div class="mt-4 flex justify-end">
-                        <button onclick="closeModal('ai-modal')" class="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">閉じる</button>
+                    <div class="mt-4 flex justify-end gap-2">
+                        <button onclick="closeModal('ai-modal')" class="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">キャンセル</button>
+                        <button id="save-summary-btn" onclick="saveAISummary()" class="hidden px-4 py-2 text-sm font-bold text-white bg-blue-500 rounded-lg hover:bg-blue-600 flex items-center gap-2">
+                            <i class="fa-solid fa-cloud-arrow-up"></i> 事例として保存・公開
+                        </button>
                     </div>
                 </div>
             </div>
@@ -97,20 +94,12 @@
                         <button onclick="closeModal('new-thread-modal')" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
                     </div>
                     <div class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-bold text-gray-700 mb-1">相談のタイトル</label>
-                            <input type="text" id="new-thread-title" placeholder="例: プロジェクターの接続不良について" class="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-bold text-gray-700 mb-1">最初のメッセージ（詳細）</label>
-                            <textarea id="new-thread-message" rows="4" placeholder="状況を詳しく教えてください..." class="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"></textarea>
-                        </div>
+                        <div><label class="block text-sm font-bold text-gray-700 mb-1">相談のタイトル</label><input type="text" id="new-thread-title" placeholder="例: プロジェクターの接続について" class="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"></div>
+                        <div><label class="block text-sm font-bold text-gray-700 mb-1">最初のメッセージ（詳細）</label><textarea id="new-thread-message" rows="4" placeholder="状況を詳しく教えてください..." class="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"></textarea></div>
                     </div>
                     <div class="mt-6 flex justify-end gap-2">
                         <button onclick="closeModal('new-thread-modal')" class="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">キャンセル</button>
-                        <button id="create-thread-submit-btn" onclick="createNewThread()" class="px-4 py-2 text-sm font-bold text-white bg-green-500 rounded-lg hover:bg-green-600 flex items-center gap-2">
-                            <i class="fa-solid fa-paper-plane"></i> 送信する
-                        </button>
+                        <button id="create-thread-submit-btn" onclick="createNewThread()" class="px-4 py-2 text-sm font-bold text-white bg-green-500 rounded-lg hover:bg-green-600 flex items-center gap-2"><i class="fa-solid fa-paper-plane"></i> 送信する</button>
                     </div>
                 </div>
             </div>
@@ -126,16 +115,13 @@
         let currentThreadId = null; 
         let appData = { consultations: [], messages: [] }; 
         let currentUser = null; 
+        let currentGeneratedSummary = ""; // ★AIが生成したテキストを一時保存する変数
 
-        window.onload = () => {
-            if(GAS_API_URL.includes("ここに")) alert("GAS_API_URL が設定されていません！");
-            loadInitialData();
-        };
+        window.onload = () => { if(GAS_API_URL.includes("ここに")) alert("GAS_API_URL を設定してください！"); loadInitialData(); };
 
         function login(role, id, name) {
             currentUser = { role: role, id: id, name: name };
             document.getElementById('login-screen').classList.add('hidden');
-            
             const roleDisplay = document.getElementById('user-role-display');
             const aiBtn = document.getElementById('ai-summary-btn');
             const newBtn = document.getElementById('new-thread-btn');
@@ -144,12 +130,12 @@
                 roleDisplay.innerHTML = `<i class="fa-solid fa-user-tie"></i> プランナーモード`;
                 roleDisplay.className = "bg-blue-800 rounded-full px-4 py-1 text-sm font-medium flex items-center gap-2";
                 aiBtn.classList.remove('hidden'); aiBtn.classList.add('flex');
-                newBtn.classList.add('hidden'); // プランナーは新規作成ボタンを隠す
+                newBtn.classList.add('hidden');
             } else {
                 roleDisplay.innerHTML = `<i class="fa-solid fa-chalkboard-user"></i> 先生モード (${name})`;
                 roleDisplay.className = "bg-green-600 rounded-full px-4 py-1 text-sm font-medium flex items-center gap-2";
                 aiBtn.classList.add('hidden'); aiBtn.classList.remove('flex');
-                newBtn.classList.remove('hidden'); // 先生は新規作成ボタンを表示
+                newBtn.classList.remove('hidden');
             }
 
             if(appData.consultations.length > 0) renderThreadList(appData.consultations);
@@ -178,29 +164,19 @@
         function renderThreadList(consultations) {
             const threadList = document.getElementById('thread-list');
             threadList.innerHTML = ''; 
-            
             let displayList = consultations;
             if (currentUser.role === 'teacher') displayList = consultations.filter(c => c['作成者(先生ID)'] === currentUser.id);
-
-            // ★ 新しく作成したものが一番上に来るように、IDで逆順（降順）に並び替え
             displayList.sort((a, b) => b['スレッドID'].localeCompare(a['スレッドID']));
 
-            if(displayList.length === 0) {
-                threadList.innerHTML = `<div class="text-gray-500 text-center p-4 text-sm">相談データがありません。</div>`;
-                return;
-            }
+            if(displayList.length === 0) { threadList.innerHTML = `<div class="text-gray-500 text-center p-4 text-sm">相談データがありません。</div>`; return; }
 
             displayList.forEach(cons => {
                 const isSelected = (cons['スレッドID'] === currentThreadId) ? 'bg-blue-100 border-l-4 border-blue-500' : 'hover:bg-blue-50 border-l-4 border-transparent';
                 const html = `
                 <div onclick="selectThread('${cons['スレッドID']}')" class="p-3 border-b border-gray-100 cursor-pointer transition mb-1 rounded ${isSelected}">
                     <div class="font-bold text-sm text-gray-700 mb-1">${cons['タイトル/概要'] || 'タイトルなし'}</div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-xs text-gray-500">ID: ${cons['スレッドID']}</span>
-                        <span class="bg-gray-100 text-gray-600 text-[10px] px-2 py-0.5 rounded-full font-bold">${cons['ステータス']}</span>
-                    </div>
-                </div>
-                `;
+                    <div class="flex justify-between items-center"><span class="text-xs text-gray-500">ID: ${cons['スレッドID']}</span><span class="bg-gray-100 text-gray-600 text-[10px] px-2 py-0.5 rounded-full font-bold">${cons['ステータス']}</span></div>
+                </div>`;
                 threadList.insertAdjacentHTML('beforeend', html);
             });
         }
@@ -209,22 +185,14 @@
             currentThreadId = threadId;
             const targetThread = appData.consultations.find(c => c['スレッドID'] === threadId);
             document.getElementById('current-thread-title').textContent = targetThread ? targetThread['タイトル/概要'] : '不明なスレッド';
-            
-            document.getElementById('message-input').disabled = false;
-            document.getElementById('send-button').disabled = false;
-
-            // リストのハイライトを更新するため再描画
+            document.getElementById('message-input').disabled = false; document.getElementById('send-button').disabled = false;
             renderThreadList(appData.consultations);
 
             const threadMessages = appData.messages.filter(m => m['紐づくスレッドID'] === threadId);
             const timeline = document.getElementById('chat-timeline');
             timeline.innerHTML = ''; 
 
-            if (threadMessages.length === 0) {
-                timeline.innerHTML = `<div class="flex justify-center items-center h-full text-gray-400"><span class="text-sm">まだメッセージがありません</span></div>`;
-                return;
-            }
-
+            if (threadMessages.length === 0) { timeline.innerHTML = `<div class="flex justify-center items-center h-full text-gray-400"><span class="text-sm">まだメッセージがありません</span></div>`; return; }
             threadMessages.forEach(msg => {
                 const dateObj = new Date(msg['送信日時']);
                 const timeString = isNaN(dateObj) ? '' : dateObj.toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'});
@@ -236,18 +204,12 @@
 
         async function sendRealMessage() {
             if (!currentThreadId) return;
-            const input = document.getElementById('message-input');
-            const button = document.getElementById('send-button');
-            const text = input.value.trim();
-            if (!text) return;
+            const input = document.getElementById('message-input'); const button = document.getElementById('send-button');
+            const text = input.value.trim(); if (!text) return;
 
             input.disabled = true; button.disabled = true;
             const senderType = currentUser.role === 'planner' ? 'プランナー' : '先生';
-
-            const payload = {
-                action: "sendMessage",
-                payload: { threadId: currentThreadId, senderType: senderType, senderId: currentUser.id, messageContent: text }
-            };
+            const payload = { action: "sendMessage", payload: { threadId: currentThreadId, senderType: senderType, senderId: currentUser.id, messageContent: text } };
 
             try {
                 const response = await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
@@ -258,41 +220,72 @@
                     input.value = '';
                     appData.messages.push({ '紐づくスレッドID': currentThreadId, '送信者区分': senderType, '送信者ID': currentUser.id, 'メッセージ内容': text, '送信日時': new Date().toISOString() });
                 }
-            } catch (error) { alert("通信エラーが発生しました"); } 
-            finally { input.disabled = false; button.disabled = false; input.focus(); }
+            } catch (error) { alert("通信エラーが発生しました"); } finally { input.disabled = false; button.disabled = false; input.focus(); }
         }
 
-        // ★新規スレッド作成モーダルの開閉処理
-        function openNewThreadModal() {
-            document.getElementById('new-thread-title').value = '';
-            document.getElementById('new-thread-message').value = '';
-            document.getElementById('new-thread-modal').classList.remove('hidden');
-        }
-        function closeModal(modalId) {
-            document.getElementById(modalId).classList.add('hidden');
-        }
+        function openNewThreadModal() { document.getElementById('new-thread-title').value = ''; document.getElementById('new-thread-message').value = ''; document.getElementById('new-thread-modal').classList.remove('hidden'); }
+        function closeModal(modalId) { document.getElementById(modalId).classList.add('hidden'); }
 
-        // ★新規スレッド作成のAPI通信処理
         async function createNewThread() {
-            const title = document.getElementById('new-thread-title').value.trim();
-            const message = document.getElementById('new-thread-message').value.trim();
-            
-            if(!title || !message) {
-                alert("タイトルと最初のメッセージを入力してください。");
-                return;
-            }
+            const title = document.getElementById('new-thread-title').value.trim(); const message = document.getElementById('new-thread-message').value.trim();
+            if(!title || !message) { alert("タイトルと最初のメッセージを入力してください。"); return; }
 
             const btn = document.getElementById('create-thread-submit-btn');
+            btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 送信中...';
+            const payload = { action: "createNewThread", payload: { title: title, messageContent: message, senderType: "先生", senderId: currentUser.id } };
+
+            try {
+                const response = await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
+                const result = await response.json();
+                if(result.status === "success") {
+                    appData.consultations.push(result.data.newConsultation); appData.messages.push(result.data.newMessage);
+                    closeModal('new-thread-modal'); selectThread(result.data.threadId);
+                } else { alert("エラー: " + result.message); }
+            } catch (error) { alert("通信エラーが発生しました"); } finally { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 送信する'; }
+        }
+
+        async function callGeminiSummary() {
+            if (!currentThreadId) return;
+            const threadMessages = appData.messages.filter(m => m['紐づくスレッドID'] === currentThreadId);
+            if (threadMessages.length === 0) return alert("要約するメッセージがありません。");
+
+            let realChatHistory = ""; threadMessages.forEach(msg => { realChatHistory += `${msg['送信者区分']}: ${msg['メッセージ内容']}\n`; });
+
+            const modal = document.getElementById('ai-modal');
+            const content = document.getElementById('ai-content');
+            const saveBtn = document.getElementById('save-summary-btn');
+            
+            modal.classList.remove('hidden');
+            saveBtn.classList.add('hidden'); // 生成中は保存ボタンを隠す
+            content.innerHTML = `<div class="flex flex-col justify-center items-center h-full text-purple-500 gap-3"><div class="loader"></div><span class="text-sm font-bold animate-pulse">Gemini 2.5 Flashで事例を自動生成中...</span></div>`;
+            
+            try {
+                const response = await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: "generateSummary", payload: { chatHistory: realChatHistory } }) });
+                const result = await response.json();
+                if (result.status === "success") {
+                    currentGeneratedSummary = result.data.summaryText; // 生成されたテキストを保持
+                    content.innerHTML = currentGeneratedSummary;
+                    saveBtn.classList.remove('hidden'); // 生成が成功したら保存ボタンを表示
+                    saveBtn.classList.add('flex');
+                } else {
+                    content.innerHTML = `<div class="text-red-500 p-4">エラー: ${result.message}</div>`;
+                }
+            } catch (error) { content.innerHTML = `<div class="text-red-500 p-4">通信エラーが発生しました</div>`; }
+        }
+
+        // ★新規追加：AI要約をデータベースに保存する処理
+        async function saveAISummary() {
+            if (!currentThreadId || !currentGeneratedSummary) return;
+            
+            const btn = document.getElementById('save-summary-btn');
             btn.disabled = true;
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 送信中...';
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 保存中...';
 
             const payload = {
-                action: "createNewThread",
+                action: "saveSummary",
                 payload: {
-                    title: title,
-                    messageContent: message,
-                    senderType: "先生",
-                    senderId: currentUser.id
+                    threadId: currentThreadId,
+                    summaryText: currentGeneratedSummary
                 }
             };
 
@@ -302,62 +295,32 @@
                     headers: { 'Content-Type': 'text/plain' },
                     body: JSON.stringify(payload)
                 });
-                
                 const result = await response.json();
                 if(result.status === "success") {
-                    // 成功したら内部データ（appData）に新しいデータを追加
-                    appData.consultations.push(result.data.newConsultation);
-                    appData.messages.push(result.data.newMessage);
-                    
-                    closeModal('new-thread-modal');
-                    
-                    // 新しく作ったスレッドを選択状態にして画面を更新
-                    selectThread(result.data.threadId);
+                    alert("事例として公開設定を保存しました！\n（スプレッドシートをご確認ください）");
+                    closeModal('ai-modal');
                 } else {
-                    alert("エラー: " + result.message);
+                    alert("保存エラー: " + result.message);
                 }
             } catch (error) {
                 alert("通信エラーが発生しました");
             } finally {
                 btn.disabled = false;
-                btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 送信する';
+                btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> 事例として保存・公開';
             }
-        }
-
-        async function callGeminiSummary() {
-            if (!currentThreadId) return;
-            const threadMessages = appData.messages.filter(m => m['紐づくスレッドID'] === currentThreadId);
-            if (threadMessages.length === 0) return alert("要約するメッセージがありません。");
-
-            let realChatHistory = "";
-            threadMessages.forEach(msg => { realChatHistory += `${msg['送信者区分']}: ${msg['メッセージ内容']}\n`; });
-
-            const modal = document.getElementById('ai-modal');
-            const content = document.getElementById('ai-content');
-            modal.classList.remove('hidden');
-            content.innerHTML = `<div class="flex flex-col justify-center items-center h-full text-purple-500 gap-3"><div class="loader"></div><span class="text-sm font-bold animate-pulse">Gemini 2.5 Flashで事例を自動生成中...</span></div>`;
-            
-            try {
-                const response = await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: "generateSummary", payload: { chatHistory: realChatHistory } }) });
-                const result = await response.json();
-                content.innerHTML = result.status === "success" ? result.data.summaryText : `<div class="text-red-500 p-4">エラー: ${result.message}</div>`;
-            } catch (error) { content.innerHTML = `<div class="text-red-500 p-4">通信エラーが発生しました</div>`; }
         }
 
         function appendMessageToTimeline(text, senderName, isMe, timeString, senderType) {
             const timeline = document.getElementById('chat-timeline');
             if(timeline.innerText.includes("メッセージがありません") || timeline.innerText.includes("選択してください")) timeline.innerHTML = ''; 
-
             let msgHtml = "";
-            if (isMe) {
-                msgHtml = `<div class="flex items-end gap-2 justify-end mb-6 animate-[fadeIn_0.3s_ease-out]"><div class="max-w-[75%] flex flex-col items-end"><div class="text-[11px] text-gray-500 mb-1 mr-1">${senderName} - ${timeString}</div><div class="bg-blue-500 text-white p-3 rounded-2xl rounded-br-none shadow-sm text-sm whitespace-pre-wrap">${text}</div></div></div>`;
-            } else {
+            if (isMe) { msgHtml = `<div class="flex items-end gap-2 justify-end mb-6 animate-[fadeIn_0.3s_ease-out]"><div class="max-w-[75%] flex flex-col items-end"><div class="text-[11px] text-gray-500 mb-1 mr-1">${senderName} - ${timeString}</div><div class="bg-blue-500 text-white p-3 rounded-2xl rounded-br-none shadow-sm text-sm whitespace-pre-wrap">${text}</div></div></div>`; } 
+            else {
                 const iconStr = senderType === 'プランナー' ? '<i class="fa-solid fa-user-tie"></i>' : '先';
                 const iconBg = senderType === 'プランナー' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600';
                 msgHtml = `<div class="flex items-end gap-2 mb-6 animate-[fadeIn_0.3s_ease-out]"><div class="w-8 h-8 rounded-full ${iconBg} flex items-center justify-center font-bold text-sm shrink-0">${iconStr}</div><div class="max-w-[75%]"><div class="text-[11px] text-gray-500 mb-1 ml-1">${senderName} - ${timeString}</div><div class="bg-white p-3 rounded-2xl rounded-bl-none shadow-sm border border-gray-100 text-sm whitespace-pre-wrap">${text}</div></div></div>`;
             }
-            timeline.insertAdjacentHTML('beforeend', msgHtml);
-            timeline.scrollTop = timeline.scrollHeight;
+            timeline.insertAdjacentHTML('beforeend', msgHtml); timeline.scrollTop = timeline.scrollHeight;
         }
     </script>
 </body>
