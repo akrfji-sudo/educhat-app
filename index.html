@@ -20,21 +20,14 @@
             <h1 class="text-3xl font-bold text-blue-600 mb-2"><i class="fa-solid fa-school"></i> EduChat</h1>
             <p class="text-gray-500 mb-8 text-sm">デモ版：ログインする役割を選択</p>
             <div class="space-y-4">
-                <button onclick="login('teacher', 'TCH_001', '佐藤 健太')" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg flex justify-center items-center gap-2 shadow-md transition">
-                    <i class="fa-solid fa-chalkboard-user"></i> 先生としてログイン (佐藤)
-                </button>
-                <button onclick="login('planner', 'PLN_001', '鈴木 プランナー')" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg flex justify-center items-center gap-2 shadow-md transition">
-                    <i class="fa-solid fa-user-tie"></i> プランナーとしてログイン
-                </button>
+                <button onclick="login('teacher', 'TCH_001', '佐藤 健太')" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg flex justify-center items-center gap-2 shadow-md transition"><i class="fa-solid fa-chalkboard-user"></i> 先生としてログイン (佐藤)</button>
+                <button onclick="login('planner', 'PLN_001', '鈴木 プランナー')" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg flex justify-center items-center gap-2 shadow-md transition"><i class="fa-solid fa-user-tie"></i> プランナーとしてログイン</button>
             </div>
         </div>
     </div>
 
     <header class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center z-10">
-        <div class="flex items-center gap-3">
-            <i class="fa-solid fa-school text-2xl"></i>
-            <h1 class="text-xl font-bold">EduChat</h1>
-        </div>
+        <div class="flex items-center gap-3"><i class="fa-solid fa-school text-2xl"></i><h1 class="text-xl font-bold">EduChat</h1></div>
         <div class="flex items-center gap-4">
             <div id="user-role-display" class="bg-blue-700 rounded-full px-4 py-1 text-sm font-medium flex items-center gap-2"></div>
             <button onclick="logout()" class="text-white hover:text-gray-200 text-sm underline"><i class="fa-solid fa-right-from-bracket"></i></button>
@@ -43,85 +36,62 @@
 
     <main class="flex-1 flex overflow-hidden">
         <aside class="w-1/3 max-w-sm bg-white border-r border-gray-200 flex flex-col">
-            <div class="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-                <h2 class="font-semibold text-gray-600 flex items-center gap-2"><i class="fa-solid fa-list-ul"></i> 相談リスト</h2>
-                <div class="flex gap-3">
-                    <button onclick="loadInitialData()" class="text-gray-500 hover:text-blue-700 text-sm"><i class="fa-solid fa-rotate-right"></i></button>
-                    <button id="new-thread-btn" onclick="openNewThreadModal()" class="hidden text-white bg-green-500 hover:bg-green-600 px-2 py-1 rounded text-xs font-bold shadow transition">＋ 新規</button>
+            <div class="p-3 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+                <button onclick="loadInitialData()" class="text-gray-500 hover:text-blue-700 text-sm"><i class="fa-solid fa-rotate-right"></i> 更新</button>
+                <button id="new-thread-btn" onclick="openNewThreadModal()" class="hidden text-white bg-green-500 hover:bg-green-600 px-3 py-1.5 rounded text-xs font-bold shadow transition"><i class="fa-solid fa-pen"></i> 新規相談</button>
+            </div>
+            
+            <div class="p-2 border-b border-gray-200 bg-white">
+                <div class="relative">
+                    <i class="fa-solid fa-search absolute left-3 top-2 text-gray-400 text-sm"></i>
+                    <input type="text" id="search-input" onkeyup="renderThreadList()" placeholder="キーワードで探す..." class="w-full bg-gray-100 border-none rounded-full pl-9 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                 </div>
             </div>
+
+            <div class="flex border-b border-gray-200 text-sm font-bold bg-white">
+                <button id="tab-my" onclick="switchTab('my')" class="flex-1 py-2 text-blue-600 border-b-2 border-blue-600 transition">💬 自分の相談</button>
+                <button id="tab-public" onclick="switchTab('public')" class="flex-1 py-2 text-gray-400 border-b-2 border-transparent hover:text-gray-600 transition">📖 みんなの事例</button>
+            </div>
+
             <div id="thread-list" class="flex-1 overflow-y-auto no-scrollbar p-2"></div>
         </aside>
 
         <section class="flex-1 flex flex-col bg-slate-50 relative">
             <div class="bg-white p-3 border-b border-gray-200 flex justify-between items-center shadow-sm z-10 h-[68px]">
-                <h3 id="current-thread-title" class="font-bold text-lg">スレッドを選択してください</h3>
-                <button id="ai-summary-btn" onclick="callGeminiSummary()" class="hidden bg-gradient-to-r from-purple-500 to-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md hover:opacity-90 transition items-center gap-2">
-                    <i class="fa-solid fa-wand-magic-sparkles"></i> AIで要約
-                </button>
-            </div>
-            <div id="chat-timeline" class="flex-1 overflow-y-auto p-4 space-y-6"></div>
-            
-            <div class="bg-white p-4 border-t border-gray-200">
-                <div class="flex items-center gap-2 max-w-4xl mx-auto">
-                    <input type="text" id="message-input" placeholder="メッセージを入力..." class="flex-1 bg-gray-100 border-none rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm disabled:opacity-50" onkeypress="if(event.key === 'Enter') sendRealMessage()" disabled>
-                    <button onclick="sendRealMessage()" id="send-button" class="bg-blue-500 hover:bg-blue-600 text-white rounded-full w-10 h-10 flex items-center justify-center shadow-md transition shrink-0 disabled:opacity-50" disabled>
-                        <i class="fa-solid fa-paper-plane"></i>
+                <h3 id="current-thread-title" class="font-bold text-lg truncate pr-4">スレッドを選択してください</h3>
+                
+                <div class="flex gap-2 items-center shrink-0">
+                    <div id="view-toggle-btns" class="hidden bg-gray-100 rounded-lg p-1 text-xs font-bold mr-2">
+                        <button id="btn-view-chat" onclick="switchViewMode('chat')" class="px-3 py-1 bg-white shadow rounded text-blue-600">チャット</button>
+                        <button id="btn-view-qa" onclick="switchViewMode('qa')" class="px-3 py-1 text-gray-500 hover:text-gray-700">記事プレビュー</button>
+                    </div>
+                    <button id="ai-summary-btn" onclick="callGeminiSummary()" class="hidden bg-gradient-to-r from-purple-500 to-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md hover:opacity-90 transition items-center gap-2">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> AIで要約
                     </button>
                 </div>
             </div>
             
-            <div id="ai-modal" class="hidden absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                <div class="bg-white rounded-xl shadow-2xl p-6 w-[90%] max-w-lg">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="font-bold text-lg text-purple-700 flex items-center gap-2"><i class="fa-solid fa-wand-magic-sparkles"></i> AI事例要約</h3>
-                        <button onclick="closeModal('ai-modal')" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
-                    </div>
-                    <div id="ai-content" class="bg-gray-50 p-4 rounded-lg border border-gray-200 text-sm text-gray-700 space-y-2 h-64 overflow-y-auto"></div>
-                    <div class="mt-4 flex justify-end gap-2">
-                        <button onclick="closeModal('ai-modal')" class="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">キャンセル</button>
-                        <button id="save-summary-btn" onclick="saveAISummary()" class="hidden px-4 py-2 text-sm font-bold text-white bg-blue-500 rounded-lg hover:bg-blue-600 flex items-center gap-2">
-                            <i class="fa-solid fa-cloud-arrow-up"></i> 事例として保存・公開
-                        </button>
+            <div id="main-chat-area" class="flex-1 flex flex-col h-full overflow-hidden">
+                <div id="chat-timeline" class="flex-1 overflow-y-auto p-4 space-y-6"></div>
+                <div class="bg-white p-4 border-t border-gray-200">
+                    <div class="flex items-center gap-2 max-w-4xl mx-auto">
+                        <input type="text" id="message-input" placeholder="メッセージを入力..." class="flex-1 bg-gray-100 border-none rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm disabled:opacity-50" onkeypress="if(event.key === 'Enter') sendRealMessage()" disabled>
+                        <button onclick="sendRealMessage()" id="send-button" class="bg-blue-500 hover:bg-blue-600 text-white rounded-full w-10 h-10 flex items-center justify-center shadow-md transition shrink-0 disabled:opacity-50" disabled><i class="fa-solid fa-paper-plane"></i></button>
                     </div>
                 </div>
             </div>
 
-            <div id="new-thread-modal" class="hidden absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                <div class="bg-white rounded-xl shadow-2xl p-6 w-[90%] max-w-lg">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="font-bold text-lg text-green-600 flex items-center gap-2"><i class="fa-solid fa-comment-medical"></i> 新しい相談を作成</h3>
-                        <button onclick="closeModal('new-thread-modal')" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
-                    </div>
-                    <div class="space-y-4">
-                        <div><label class="block text-sm font-bold text-gray-700 mb-1">相談のタイトル</label><input type="text" id="new-thread-title" placeholder="例: プロジェクターの接続について" class="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"></div>
-                        <div><label class="block text-sm font-bold text-gray-700 mb-1">最初のメッセージ（詳細）</label><textarea id="new-thread-message" rows="4" placeholder="状況を詳しく教えてください..." class="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"></textarea></div>
-                    </div>
-                    <div class="mt-6 flex justify-end gap-2">
-                        <button onclick="closeModal('new-thread-modal')" class="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">キャンセル</button>
-                        <button id="create-thread-submit-btn" onclick="createNewThread()" class="px-4 py-2 text-sm font-bold text-white bg-green-500 rounded-lg hover:bg-green-600 flex items-center gap-2"><i class="fa-solid fa-paper-plane"></i> 送信する</button>
-                    </div>
+            <div id="main-qa-area" class="hidden flex-1 overflow-y-auto p-8 bg-white justify-center">
+                <div class="max-w-3xl w-full">
+                    <div class="inline-block bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded mb-3"><i class="fa-solid fa-check-circle"></i> 解決済み事例</div>
+                    <h2 id="qa-title" class="text-2xl font-bold text-gray-800 mb-6 border-b pb-4">タイトル</h2>
+                    <div id="qa-content" class="text-gray-700 leading-relaxed text-sm space-y-4"></div>
                 </div>
             </div>
 
-            <div id="edit-message-modal" class="hidden absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                <div class="bg-white rounded-xl shadow-2xl p-6 w-[90%] max-w-lg">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="font-bold text-lg text-blue-600 flex items-center gap-2"><i class="fa-solid fa-pen"></i> メッセージの修正</h3>
-                        <button onclick="closeModal('edit-message-modal')" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
-                    </div>
-                    <div class="space-y-2">
-                        <p class="text-xs text-gray-500">※個人情報などをマスク・修正して保存できます。</p>
-                        <input type="hidden" id="edit-message-id">
-                        <textarea id="edit-message-content" rows="6" class="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
-                    </div>
-                    <div class="mt-6 flex justify-end gap-2">
-                        <button onclick="closeModal('edit-message-modal')" class="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">キャンセル</button>
-                        <button id="save-edit-btn" onclick="saveEditedMessage()" class="px-4 py-2 text-sm font-bold text-white bg-blue-500 rounded-lg hover:bg-blue-600 flex items-center gap-2"><i class="fa-solid fa-save"></i> 修正を保存</button>
-                    </div>
-                </div>
-            </div>
-
+            <div id="ai-modal" class="hidden absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"><div class="bg-white rounded-xl shadow-2xl p-6 w-[90%] max-w-lg"><div class="flex justify-between items-center mb-4"><h3 class="font-bold text-lg text-purple-700 flex items-center gap-2"><i class="fa-solid fa-wand-magic-sparkles"></i> AI事例要約</h3><button onclick="closeModal('ai-modal')" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button></div><div id="ai-content" class="bg-gray-50 p-4 rounded-lg border border-gray-200 text-sm text-gray-700 space-y-2 h-64 overflow-y-auto"></div><div class="mt-4 flex justify-end gap-2"><button onclick="closeModal('ai-modal')" class="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">キャンセル</button><button id="save-summary-btn" onclick="saveAISummary()" class="hidden px-4 py-2 text-sm font-bold text-white bg-blue-500 rounded-lg hover:bg-blue-600 flex items-center gap-2"><i class="fa-solid fa-cloud-arrow-up"></i> 事例として保存・公開</button></div></div></div>
+            <div id="new-thread-modal" class="hidden absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"><div class="bg-white rounded-xl shadow-2xl p-6 w-[90%] max-w-lg"><div class="flex justify-between items-center mb-4"><h3 class="font-bold text-lg text-green-600 flex items-center gap-2"><i class="fa-solid fa-comment-medical"></i> 新しい相談を作成</h3><button onclick="closeModal('new-thread-modal')" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button></div><div class="space-y-4"><div><label class="block text-sm font-bold text-gray-700 mb-1">相談のタイトル</label><input type="text" id="new-thread-title" placeholder="例: プロジェクターの接続について" class="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"></div><div><label class="block text-sm font-bold text-gray-700 mb-1">最初のメッセージ（詳細）</label><textarea id="new-thread-message" rows="4" placeholder="状況を詳しく教えてください..." class="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"></textarea></div></div><div class="mt-6 flex justify-end gap-2"><button onclick="closeModal('new-thread-modal')" class="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">キャンセル</button><button id="create-thread-submit-btn" onclick="createNewThread()" class="px-4 py-2 text-sm font-bold text-white bg-green-500 rounded-lg hover:bg-green-600 flex items-center gap-2"><i class="fa-solid fa-paper-plane"></i> 送信する</button></div></div></div>
+            <div id="edit-message-modal" class="hidden absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"><div class="bg-white rounded-xl shadow-2xl p-6 w-[90%] max-w-lg"><div class="flex justify-between items-center mb-4"><h3 class="font-bold text-lg text-blue-600 flex items-center gap-2"><i class="fa-solid fa-pen"></i> メッセージの修正</h3><button onclick="closeModal('edit-message-modal')" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button></div><div class="space-y-2"><p class="text-xs text-gray-500">※個人情報などをマスク・修正して保存できます。</p><input type="hidden" id="edit-message-id"><textarea id="edit-message-content" rows="6" class="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea></div><div class="mt-6 flex justify-end gap-2"><button onclick="closeModal('edit-message-modal')" class="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">キャンセル</button><button id="save-edit-btn" onclick="saveEditedMessage()" class="px-4 py-2 text-sm font-bold text-white bg-blue-500 rounded-lg hover:bg-blue-600 flex items-center gap-2"><i class="fa-solid fa-save"></i> 修正を保存</button></div></div></div>
         </section>
     </main>
 
@@ -129,12 +99,15 @@
         // ==========================================
         // ⚠️ 超重要：ここにGASで発行したURLを貼り付けます
         // ==========================================
-        const GAS_API_URL = "https://script.google.com/macros/s/AKfycbxiK9JJXIrhaCJzGCwXTlk62_wsxF6gqXhWITBc7WpYQ9yTdGy6aIDo9OcpRA8ofosS2g/exec";
+        const GAS_API_URL = "https://script.google.com/macros/s/AKfycbxA7rzs1QyhAhA8GQgB97yEMppgvAZVKtFI7EYxY_PfoaAkTBlsnF24_xmKka9Ld8rLAw/exec";
         
         let currentThreadId = null; 
         let appData = { consultations: [], messages: [] }; 
         let currentUser = null; 
         let currentGeneratedSummary = ""; 
+        
+        // ★現在のタブ状態を管理 ('my' or 'public')
+        let currentTab = 'my'; 
 
         window.onload = () => { if(GAS_API_URL.includes("ここに")) alert("GAS_API_URL を設定してください！"); loadInitialData(); };
 
@@ -144,27 +117,56 @@
             const roleDisplay = document.getElementById('user-role-display');
             const aiBtn = document.getElementById('ai-summary-btn');
             const newBtn = document.getElementById('new-thread-btn');
+            const tabMy = document.getElementById('tab-my');
             
             if(role === 'planner') {
                 roleDisplay.innerHTML = `<i class="fa-solid fa-user-tie"></i> プランナーモード`;
                 roleDisplay.className = "bg-blue-800 rounded-full px-4 py-1 text-sm font-medium flex items-center gap-2";
                 aiBtn.classList.remove('hidden'); aiBtn.classList.add('flex');
                 newBtn.classList.add('hidden');
+                tabMy.textContent = "💬 すべての相談"; // プランナー向けにタブ名変更
             } else {
                 roleDisplay.innerHTML = `<i class="fa-solid fa-chalkboard-user"></i> 先生モード (${name})`;
                 roleDisplay.className = "bg-green-600 rounded-full px-4 py-1 text-sm font-medium flex items-center gap-2";
                 aiBtn.classList.add('hidden'); aiBtn.classList.remove('flex');
                 newBtn.classList.remove('hidden');
+                tabMy.textContent = "💬 自分の相談";
             }
 
-            if(appData.consultations.length > 0) renderThreadList(appData.consultations);
-            document.getElementById('chat-timeline').innerHTML = `<div class="flex justify-center items-center h-full text-gray-400"><span class="text-sm">左側のリストから相談を選択してください</span></div>`;
-            document.getElementById('current-thread-title').textContent = "スレッドを選択してください";
-            document.getElementById('message-input').disabled = true; document.getElementById('send-button').disabled = true;
-            currentThreadId = null;
+            switchTab('my'); // ログイン時は「my」タブを初期表示
         }
 
         function logout() { location.reload(); }
+
+        // ★タブの切り替え処理
+        function switchTab(tab) {
+            currentTab = tab;
+            const tabMy = document.getElementById('tab-my');
+            const tabPub = document.getElementById('tab-public');
+            
+            // 見た目の切り替え
+            if (tab === 'my') {
+                tabMy.className = "flex-1 py-2 text-blue-600 border-b-2 border-blue-600 transition";
+                tabPub.className = "flex-1 py-2 text-gray-400 border-b-2 border-transparent hover:text-gray-600 transition";
+            } else {
+                tabPub.className = "flex-1 py-2 text-blue-600 border-b-2 border-blue-600 transition";
+                tabMy.className = "flex-1 py-2 text-gray-400 border-b-2 border-transparent hover:text-gray-600 transition";
+            }
+            
+            // 画面をリセット
+            currentThreadId = null;
+            document.getElementById('current-thread-title').textContent = "スレッドを選択してください";
+            document.getElementById('main-chat-area').classList.remove('hidden');
+            document.getElementById('main-chat-area').classList.add('flex');
+            document.getElementById('main-qa-area').classList.add('hidden');
+            document.getElementById('main-qa-area').classList.remove('flex');
+            document.getElementById('view-toggle-btns').classList.add('hidden');
+            document.getElementById('chat-timeline').innerHTML = `<div class="flex justify-center items-center h-full text-gray-400"><span class="text-sm">左側のリストから選択してください</span></div>`;
+            document.getElementById('message-input').disabled = true;
+            document.getElementById('send-button').disabled = true;
+            
+            if(appData.consultations.length > 0) renderThreadList();
+        }
 
         async function loadInitialData() {
             try {
@@ -173,41 +175,122 @@
                 if(result.status === "success") {
                     appData.consultations = result.data.consultations || [];
                     appData.messages = result.data.messages || [];
-                    if(currentUser) renderThreadList(appData.consultations);
+                    if(currentUser) renderThreadList();
                 }
             } catch (error) { console.error("通信エラー:", error); }
         }
 
-        function renderThreadList(consultations) {
+        // ★リスト描画（タブの条件と検索キーワードで絞り込む）
+        function renderThreadList() {
             const threadList = document.getElementById('thread-list');
             threadList.innerHTML = ''; 
-            let displayList = consultations;
-            if (currentUser.role === 'teacher') displayList = consultations.filter(c => c['作成者(先生ID)'] === currentUser.id);
+            const searchWord = document.getElementById('search-input').value.toLowerCase();
+            
+            let displayList = appData.consultations;
+            
+            // 1. タブによる絞り込み
+            if (currentTab === 'my') {
+                // 先生なら自分のものだけ。プランナーなら全件（絞り込みなし）
+                if (currentUser.role === 'teacher') {
+                    displayList = displayList.filter(c => c['作成者(先生ID)'] === currentUser.id);
+                }
+            } else if (currentTab === 'public') {
+                // 「みんなの事例」は、公開ステータスがSummaryのものだけ！
+                displayList = displayList.filter(c => c['公開ステータス'] === 'Summary');
+            }
+
+            // 2. 検索バーによる絞り込み
+            if (searchWord) {
+                displayList = displayList.filter(c => 
+                    (c['タイトル/概要'] || '').toLowerCase().includes(searchWord) ||
+                    (c['公開用テキスト'] || '').toLowerCase().includes(searchWord)
+                );
+            }
+
             displayList.sort((a, b) => b['スレッドID'].localeCompare(a['スレッドID']));
 
-            if(displayList.length === 0) { threadList.innerHTML = `<div class="text-gray-500 text-center p-4 text-sm">相談データがありません。</div>`; return; }
+            if(displayList.length === 0) { threadList.innerHTML = `<div class="text-gray-500 text-center p-4 text-sm">該当するデータがありません。</div>`; return; }
 
             displayList.forEach(cons => {
                 const isSelected = (cons['スレッドID'] === currentThreadId) ? 'bg-blue-100 border-l-4 border-blue-500' : 'hover:bg-blue-50 border-l-4 border-transparent';
+                // publicタブの時はアイコンを本のマークにする
+                const icon = currentTab === 'public' ? '📖' : '💬';
                 const html = `
                 <div onclick="selectThread('${cons['スレッドID']}')" class="p-3 border-b border-gray-100 cursor-pointer transition mb-1 rounded ${isSelected}">
-                    <div class="font-bold text-sm text-gray-700 mb-1">${cons['タイトル/概要'] || 'タイトルなし'}</div>
+                    <div class="font-bold text-sm text-gray-700 mb-1">${icon} ${cons['タイトル/概要'] || 'タイトルなし'}</div>
                     <div class="flex justify-between items-center"><span class="text-xs text-gray-500">ID: ${cons['スレッドID']}</span><span class="bg-gray-100 text-gray-600 text-[10px] px-2 py-0.5 rounded-full font-bold">${cons['ステータス']}</span></div>
                 </div>`;
                 threadList.insertAdjacentHTML('beforeend', html);
             });
         }
 
+        // ★スレッドを選択した時の画面切り替えロジック
         function selectThread(threadId) {
             currentThreadId = threadId;
             const targetThread = appData.consultations.find(c => c['スレッドID'] === threadId);
             document.getElementById('current-thread-title').textContent = targetThread ? targetThread['タイトル/概要'] : '不明なスレッド';
-            document.getElementById('message-input').disabled = false; document.getElementById('send-button').disabled = false;
-            renderThreadList(appData.consultations);
+            
+            // リストのハイライト更新
+            renderThreadList();
 
-            refreshChatTimeline();
+            const chatArea = document.getElementById('main-chat-area');
+            const qaArea = document.getElementById('main-qa-area');
+            const toggleBtns = document.getElementById('view-toggle-btns');
+            
+            // 【条件分岐】どう表示するか？
+            if (currentTab === 'public' && currentUser.role === 'teacher') {
+                // パターンA：先生が「みんなの事例」を見ている -> チャットを隠してQA記事だけ見せる！
+                chatArea.classList.add('hidden'); chatArea.classList.remove('flex');
+                qaArea.classList.remove('hidden'); qaArea.classList.add('flex');
+                toggleBtns.classList.add('hidden');
+                
+                document.getElementById('qa-title').textContent = targetThread['タイトル/概要'];
+                // ※AIの改行テキストをHTMLの<br>に変換して表示
+                document.getElementById('qa-content').innerHTML = (targetThread['公開用テキスト'] || '内容がありません').replace(/\n/g, '<br>');
+                
+            } else {
+                // パターンB：先生が自分の相談を見る、またはプランナーが見る -> 基本はチャット画面
+                chatArea.classList.remove('hidden'); chatArea.classList.add('flex');
+                qaArea.classList.add('hidden'); qaArea.classList.remove('flex');
+                document.getElementById('message-input').disabled = false; 
+                document.getElementById('send-button').disabled = false;
+                
+                // プランナーで、かつ公開済みの事例ならトグルボタンを表示する
+                if (currentUser.role === 'planner' && targetThread['公開ステータス'] === 'Summary') {
+                    toggleBtns.classList.remove('hidden');
+                    switchViewMode('chat'); // 初期はチャットモード
+                    // QA側の裏準備
+                    document.getElementById('qa-title').textContent = targetThread['タイトル/概要'];
+                    document.getElementById('qa-content').innerHTML = (targetThread['公開用テキスト'] || '').replace(/\n/g, '<br>');
+                } else {
+                    toggleBtns.classList.add('hidden');
+                }
+                
+                refreshChatTimeline();
+            }
         }
 
+        // ★プランナー用：チャットとQA記事の表示モード切り替え
+        function switchViewMode(mode) {
+            const chatArea = document.getElementById('main-chat-area');
+            const qaArea = document.getElementById('main-qa-area');
+            const btnChat = document.getElementById('btn-view-chat');
+            const btnQa = document.getElementById('btn-view-qa');
+
+            if (mode === 'chat') {
+                chatArea.classList.remove('hidden'); chatArea.classList.add('flex');
+                qaArea.classList.add('hidden'); qaArea.classList.remove('flex');
+                btnChat.className = "px-3 py-1 bg-white shadow rounded text-blue-600";
+                btnQa.className = "px-3 py-1 text-gray-500 hover:text-gray-700";
+            } else {
+                chatArea.classList.add('hidden'); chatArea.classList.remove('flex');
+                qaArea.classList.remove('hidden'); qaArea.classList.add('flex');
+                btnQa.className = "px-3 py-1 bg-white shadow rounded text-blue-600";
+                btnChat.className = "px-3 py-1 text-gray-500 hover:text-gray-700";
+            }
+        }
+
+        // 以降は既存の関数（変更なし）
         function refreshChatTimeline() {
             const threadMessages = appData.messages.filter(m => m['紐づくスレッドID'] === currentThreadId);
             const timeline = document.getElementById('chat-timeline');
@@ -215,187 +298,19 @@
             if (threadMessages.length === 0) { timeline.innerHTML = `<div class="flex justify-center items-center h-full text-gray-400"><span class="text-sm">まだメッセージがありません</span></div>`; return; }
             threadMessages.forEach(msg => { appendMessageToTimeline(msg); });
         }
-
-        async function sendRealMessage() {
-            if (!currentThreadId) return;
-            const input = document.getElementById('message-input'); const button = document.getElementById('send-button');
-            const text = input.value.trim(); if (!text) return;
-
-            input.disabled = true; button.disabled = true;
-            const senderType = currentUser.role === 'planner' ? 'プランナー' : '先生';
-            const payload = { action: "sendMessage", payload: { threadId: currentThreadId, senderType: senderType, senderId: currentUser.id, messageContent: text } };
-
-            try {
-                const response = await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
-                const result = await response.json();
-                if(result.status === "success") {
-                    const newMsg = {
-                        'メッセージID': result.data.messageId || ("MSG_" + Date.now()),
-                        '紐づくスレッドID': currentThreadId,
-                        '送信者区分': senderType,
-                        '送信者ID': currentUser.id,
-                        'メッセージ内容': text,
-                        '送信日時': new Date().toISOString(),
-                        '公開対象フラグ': false // ★新規送信時は「非公開(false)」をデフォルトにする
-                    };
-                    appData.messages.push(newMsg);
-                    refreshChatTimeline();
-                    input.value = '';
-                }
-            } catch (error) { alert("通信エラーが発生しました"); } finally { input.disabled = false; button.disabled = false; input.focus(); }
-        }
-
+        
+        // (省略防止：以下はすべて直前と同じコードの維持です)
+        async function sendRealMessage() { if (!currentThreadId) return; const input = document.getElementById('message-input'); const button = document.getElementById('send-button'); const text = input.value.trim(); if (!text) return; input.disabled = true; button.disabled = true; const senderType = currentUser.role === 'planner' ? 'プランナー' : '先生'; const payload = { action: "sendMessage", payload: { threadId: currentThreadId, senderType: senderType, senderId: currentUser.id, messageContent: text } }; try { const response = await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) }); const result = await response.json(); if(result.status === "success") { const newMsg = { 'メッセージID': result.data.messageId || ("MSG_" + Date.now()), '紐づくスレッドID': currentThreadId, '送信者区分': senderType, '送信者ID': currentUser.id, 'メッセージ内容': text, '送信日時': new Date().toISOString(), '公開対象フラグ': false }; appData.messages.push(newMsg); refreshChatTimeline(); input.value = ''; } } catch (error) { alert("通信エラーが発生しました"); } finally { input.disabled = false; button.disabled = false; input.focus(); } }
         function openNewThreadModal() { document.getElementById('new-thread-title').value = ''; document.getElementById('new-thread-message').value = ''; document.getElementById('new-thread-modal').classList.remove('hidden'); }
         function closeModal(modalId) { document.getElementById(modalId).classList.add('hidden'); }
-
-        async function createNewThread() {
-            const title = document.getElementById('new-thread-title').value.trim(); const message = document.getElementById('new-thread-message').value.trim();
-            if(!title || !message) { alert("タイトルと最初のメッセージを入力してください。"); return; }
-
-            const btn = document.getElementById('create-thread-submit-btn');
-            btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 送信中...';
-            const payload = { action: "createNewThread", payload: { title: title, messageContent: message, senderType: "先生", senderId: currentUser.id } };
-
-            try {
-                const response = await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
-                const result = await response.json();
-                if(result.status === "success") {
-                    appData.consultations.push(result.data.newConsultation); 
-                    result.data.newMessage['公開対象フラグ'] = false; // ★新規スレッド作成時も「非公開」デフォルト
-                    appData.messages.push(result.data.newMessage);
-                    closeModal('new-thread-modal'); selectThread(result.data.threadId);
-                } else { alert("エラー: " + result.message); }
-            } catch (error) { alert("通信エラーが発生しました"); } finally { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 送信する'; }
-        }
-
-        async function callGeminiSummary() {
-            if (!currentThreadId) return;
-            const threadMessages = appData.messages.filter(m => m['紐づくスレッドID'] === currentThreadId && (m['公開対象フラグ'] === true || m['公開対象フラグ'] === 'TRUE' || m['公開対象フラグ'] === 'true'));
-            if (threadMessages.length === 0) return alert("公開対象に設定されているメッセージがありません。");
-
-            let realChatHistory = ""; threadMessages.forEach(msg => { realChatHistory += `${msg['送信者区分']}: ${msg['メッセージ内容']}\n`; });
-            const modal = document.getElementById('ai-modal'); const content = document.getElementById('ai-content'); const saveBtn = document.getElementById('save-summary-btn');
-            modal.classList.remove('hidden'); saveBtn.classList.add('hidden');
-            content.innerHTML = `<div class="flex flex-col justify-center items-center h-full text-purple-500 gap-3"><div class="loader"></div><span class="text-sm font-bold animate-pulse">Gemini 2.5 Flashで事例を自動生成中...</span></div>`;
-            
-            try {
-                const response = await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: "generateSummary", payload: { chatHistory: realChatHistory } }) });
-                const result = await response.json();
-                if (result.status === "success") {
-                    currentGeneratedSummary = result.data.summaryText; content.innerHTML = currentGeneratedSummary;
-                    saveBtn.classList.remove('hidden'); saveBtn.classList.add('flex');
-                } else { content.innerHTML = `<div class="text-red-500 p-4">エラー: ${result.message}</div>`; }
-            } catch (error) { content.innerHTML = `<div class="text-red-500 p-4">通信エラーが発生しました</div>`; }
-        }
-
-        async function saveAISummary() {
-            if (!currentThreadId || !currentGeneratedSummary) return;
-            const btn = document.getElementById('save-summary-btn'); btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 保存中...';
-            try {
-                const response = await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: "saveSummary", payload: { threadId: currentThreadId, summaryText: currentGeneratedSummary } }) });
-                const result = await response.json();
-                if(result.status === "success") { alert("事例として公開設定を保存しました！"); closeModal('ai-modal'); } else { alert("保存エラー: " + result.message); }
-            } catch (error) { alert("通信エラーが発生しました"); } finally { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> 事例として保存・公開'; }
-        }
-
-        async function toggleMsgVisibility(msgId) {
-            const msgIndex = appData.messages.findIndex(m => m['メッセージID'] === msgId);
-            if (msgIndex === -1) return;
-            
-            const currentFlag = appData.messages[msgIndex]['公開対象フラグ'];
-            appData.messages[msgIndex]['公開対象フラグ'] = !(currentFlag === true || currentFlag === 'TRUE' || currentFlag === 'true');
-            refreshChatTimeline(); // 即座に再描画
-            
-            try { await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: "toggleMessageVisibility", payload: { messageId: msgId } }) }); } 
-            catch(e) { console.error("設定の保存に失敗しました"); }
-        }
-
-        // ★新規追加：編集モーダルを開く処理
-        function openEditMessageModal(msgId) {
-            const msg = appData.messages.find(m => m['メッセージID'] === msgId);
-            if(!msg) return;
-            document.getElementById('edit-message-id').value = msgId;
-            document.getElementById('edit-message-content').value = msg['メッセージ内容'];
-            document.getElementById('edit-message-modal').classList.remove('hidden');
-        }
-
-        // ★新規追加：修正したテキストをGASに保存する処理
-        async function saveEditedMessage() {
-            const msgId = document.getElementById('edit-message-id').value;
-            const newContent = document.getElementById('edit-message-content').value.trim();
-            if(!newContent) return;
-
-            const btn = document.getElementById('save-edit-btn');
-            btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 保存中...';
-
-            try {
-                const payload = { action: "updateMessageContent", payload: { messageId: msgId, newContent: newContent } };
-                const response = await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
-                const result = await response.json();
-                
-                if(result.status === "success") {
-                    // 内部のデータも更新して画面を再描画
-                    const msgIndex = appData.messages.findIndex(m => m['メッセージID'] === msgId);
-                    if(msgIndex !== -1) appData.messages[msgIndex]['メッセージ内容'] = newContent;
-                    refreshChatTimeline();
-                    closeModal('edit-message-modal');
-                } else { alert("エラー: " + result.message); }
-            } catch (error) { alert("通信エラーが発生しました"); } 
-            finally { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-save"></i> 修正を保存'; }
-        }
-
-        // ★視認性を高めたメッセージ描画関数（非公開時は破線＋グレー背景）
-        function appendMessageToTimeline(msg) {
-            const timeline = document.getElementById('chat-timeline');
-            
-            const isMe = (msg['送信者ID'] === currentUser.id);
-            const senderName = isMe ? 'あなた' : (msg['送信者区分'] === 'プランナー' ? 'プランナー' : '先生');
-            const dateObj = new Date(msg['送信日時']);
-            const timeString = isNaN(dateObj) ? '' : dateObj.toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'});
-            
-            const isPublic = (msg['公開対象フラグ'] === true || msg['公開対象フラグ'] === 'TRUE' || msg['公開対象フラグ'] === 'true');
-            
-            // プランナー専用のコントロールボタン（公開トグル ＋ 編集ボタン）
-            let controlsHtml = "";
-            if (currentUser.role === 'planner') {
-                const icon = isPublic ? '<i class="fa-solid fa-eye"></i> 公開中' : '<i class="fa-solid fa-eye-slash"></i> 非公開';
-                const color = isPublic ? 'text-blue-600 bg-blue-100' : 'text-gray-600 bg-gray-200';
-                controlsHtml = `
-                    <div class="flex gap-2 ml-3">
-                        <button onclick="toggleMsgVisibility('${msg['メッセージID']}')" class="text-[10px] font-bold ${color} hover:opacity-70 px-2 py-0.5 rounded shadow-sm transition">${icon}</button>
-                        <button onclick="openEditMessageModal('${msg['メッセージID']}')" class="text-[10px] font-bold text-gray-600 bg-gray-100 hover:bg-gray-300 px-2 py-0.5 rounded shadow-sm transition"><i class="fa-solid fa-pen"></i> 修正</button>
-                    </div>`;
-            }
-
-            let msgHtml = "";
-            if (isMe) {
-                // 自分（右側）の吹き出し。公開時は青、非公開時は濃いグレー＆破線
-                const bubbleColor = isPublic ? "bg-blue-500 text-white border-none" : "bg-slate-500 text-gray-50 border-2 border-dashed border-slate-700 shadow-none";
-                msgHtml = `
-                    <div class="flex items-end gap-2 justify-end mb-6 animate-[fadeIn_0.3s_ease-out]">
-                        <div class="max-w-[75%] flex flex-col items-end">
-                            <div class="text-[11px] text-gray-500 mb-1 flex items-center">${senderName} - ${timeString} ${controlsHtml}</div>
-                            <div class="${bubbleColor} p-3 rounded-2xl rounded-br-none shadow-sm text-sm whitespace-pre-wrap">${msg['メッセージ内容']}</div>
-                        </div>
-                    </div>`;
-            } else {
-                // 相手（左側）の吹き出し。公開時は白、非公開時は薄いグレー＆破線
-                const iconStr = msg['送信者区分'] === 'プランナー' ? '<i class="fa-solid fa-user-tie"></i>' : '先';
-                const iconBg = msg['送信者区分'] === 'プランナー' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600';
-                const bubbleColor = isPublic ? "bg-white text-gray-800 border-gray-100 border" : "bg-gray-100 text-gray-600 border-gray-400 border-2 border-dashed shadow-none";
-
-                msgHtml = `
-                    <div class="flex items-end gap-2 mb-6 animate-[fadeIn_0.3s_ease-out]">
-                        <div class="w-8 h-8 rounded-full ${iconBg} flex items-center justify-center font-bold text-sm shrink-0">${iconStr}</div>
-                        <div class="max-w-[75%]">
-                            <div class="text-[11px] text-gray-500 mb-1 flex items-center">${senderName} - ${timeString} ${controlsHtml}</div>
-                            <div class="${bubbleColor} p-3 rounded-2xl rounded-bl-none shadow-sm text-sm whitespace-pre-wrap">${msg['メッセージ内容']}</div>
-                        </div>
-                    </div>`;
-            }
-            timeline.insertAdjacentHTML('beforeend', msgHtml); 
-            timeline.scrollTop = timeline.scrollHeight;
-        }
+        async function createNewThread() { const title = document.getElementById('new-thread-title').value.trim(); const message = document.getElementById('new-thread-message').value.trim(); if(!title || !message) { alert("タイトルと最初のメッセージを入力してください。"); return; } const btn = document.getElementById('create-thread-submit-btn'); btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 送信中...'; const payload = { action: "createNewThread", payload: { title: title, messageContent: message, senderType: "先生", senderId: currentUser.id } }; try { const response = await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) }); const result = await response.json(); if(result.status === "success") { appData.consultations.push(result.data.newConsultation); result.data.newMessage['公開対象フラグ'] = false; appData.messages.push(result.data.newMessage); closeModal('new-thread-modal'); selectThread(result.data.threadId); } else { alert("エラー: " + result.message); } } catch (error) { alert("通信エラーが発生しました"); } finally { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 送信する'; } }
+        async function callGeminiSummary() { if (!currentThreadId) return; const threadMessages = appData.messages.filter(m => m['紐づくスレッドID'] === currentThreadId && (m['公開対象フラグ'] === true || m['公開対象フラグ'] === 'TRUE' || m['公開対象フラグ'] === 'true')); if (threadMessages.length === 0) return alert("公開対象に設定されているメッセージがありません。"); let realChatHistory = ""; threadMessages.forEach(msg => { realChatHistory += `${msg['送信者区分']}: ${msg['メッセージ内容']}\n`; }); const modal = document.getElementById('ai-modal'); const content = document.getElementById('ai-content'); const saveBtn = document.getElementById('save-summary-btn'); modal.classList.remove('hidden'); saveBtn.classList.add('hidden'); content.innerHTML = `<div class="flex flex-col justify-center items-center h-full text-purple-500 gap-3"><div class="loader"></div><span class="text-sm font-bold animate-pulse">Gemini 2.5 Flashで事例を自動生成中...</span></div>`; try { const response = await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: "generateSummary", payload: { chatHistory: realChatHistory } }) }); const result = await response.json(); if (result.status === "success") { currentGeneratedSummary = result.data.summaryText; content.innerHTML = currentGeneratedSummary.replace(/\n/g, '<br>'); saveBtn.classList.remove('hidden'); saveBtn.classList.add('flex'); } else { content.innerHTML = `<div class="text-red-500 p-4">エラー: ${result.message}</div>`; } } catch (error) { content.innerHTML = `<div class="text-red-500 p-4">通信エラーが発生しました</div>`; } }
+        async function saveAISummary() { if (!currentThreadId || !currentGeneratedSummary) return; const btn = document.getElementById('save-summary-btn'); btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 保存中...'; try { const response = await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: "saveSummary", payload: { threadId: currentThreadId, summaryText: currentGeneratedSummary } }) }); const result = await response.json(); if(result.status === "success") { alert("事例として公開設定を保存しました！"); closeModal('ai-modal'); // ローカルデータも更新して「みんなの事例」に出るようにする
+        const target = appData.consultations.find(c => c['スレッドID'] === currentThreadId); if(target){ target['公開ステータス'] = 'Summary'; target['公開用テキスト'] = currentGeneratedSummary; } selectThread(currentThreadId); } else { alert("保存エラー: " + result.message); } } catch (error) { alert("通信エラーが発生しました"); } finally { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> 事例として保存・公開'; } }
+        async function toggleMsgVisibility(msgId) { const msgIndex = appData.messages.findIndex(m => m['メッセージID'] === msgId); if (msgIndex === -1) return; const currentFlag = appData.messages[msgIndex]['公開対象フラグ']; appData.messages[msgIndex]['公開対象フラグ'] = !(currentFlag === true || currentFlag === 'TRUE' || currentFlag === 'true'); refreshChatTimeline(); try { await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: "toggleMessageVisibility", payload: { messageId: msgId } }) }); } catch(e) { console.error("設定の保存に失敗しました"); } }
+        function openEditMessageModal(msgId) { const msg = appData.messages.find(m => m['メッセージID'] === msgId); if(!msg) return; document.getElementById('edit-message-id').value = msgId; document.getElementById('edit-message-content').value = msg['メッセージ内容']; document.getElementById('edit-message-modal').classList.remove('hidden'); }
+        async function saveEditedMessage() { const msgId = document.getElementById('edit-message-id').value; const newContent = document.getElementById('edit-message-content').value.trim(); if(!newContent) return; const btn = document.getElementById('save-edit-btn'); btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 保存中...'; try { const payload = { action: "updateMessageContent", payload: { messageId: msgId, newContent: newContent } }; const response = await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) }); const result = await response.json(); if(result.status === "success") { const msgIndex = appData.messages.findIndex(m => m['メッセージID'] === msgId); if(msgIndex !== -1) appData.messages[msgIndex]['メッセージ内容'] = newContent; refreshChatTimeline(); closeModal('edit-message-modal'); } else { alert("エラー: " + result.message); } } catch (error) { alert("通信エラーが発生しました"); } finally { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-save"></i> 修正を保存'; } }
+        function appendMessageToTimeline(msg) { const timeline = document.getElementById('chat-timeline'); const isMe = (msg['送信者ID'] === currentUser.id); const senderName = isMe ? 'あなた' : (msg['送信者区分'] === 'プランナー' ? 'プランナー' : '先生'); const dateObj = new Date(msg['送信日時']); const timeString = isNaN(dateObj) ? '' : dateObj.toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'}); const isPublic = (msg['公開対象フラグ'] === true || msg['公開対象フラグ'] === 'TRUE' || msg['公開対象フラグ'] === 'true'); let controlsHtml = ""; if (currentUser.role === 'planner') { const icon = isPublic ? '<i class="fa-solid fa-eye"></i> 公開中' : '<i class="fa-solid fa-eye-slash"></i> 非公開'; const color = isPublic ? 'text-blue-600 bg-blue-100' : 'text-gray-600 bg-gray-200'; controlsHtml = `<div class="flex gap-2 ml-3"><button onclick="toggleMsgVisibility('${msg['メッセージID']}')" class="text-[10px] font-bold ${color} hover:opacity-70 px-2 py-0.5 rounded shadow-sm transition">${icon}</button><button onclick="openEditMessageModal('${msg['メッセージID']}')" class="text-[10px] font-bold text-gray-600 bg-gray-100 hover:bg-gray-300 px-2 py-0.5 rounded shadow-sm transition"><i class="fa-solid fa-pen"></i> 修正</button></div>`; } let msgHtml = ""; if (isMe) { const bubbleColor = isPublic ? "bg-blue-500 text-white border-none" : "bg-slate-500 text-gray-50 border-2 border-dashed border-slate-700 shadow-none"; msgHtml = `<div class="flex items-end gap-2 justify-end mb-6 animate-[fadeIn_0.3s_ease-out]"><div class="max-w-[75%] flex flex-col items-end"><div class="text-[11px] text-gray-500 mb-1 flex items-center">${senderName} - ${timeString} ${controlsHtml}</div><div class="${bubbleColor} p-3 rounded-2xl rounded-br-none shadow-sm text-sm whitespace-pre-wrap">${msg['メッセージ内容']}</div></div></div>`; } else { const iconStr = msg['送信者区分'] === 'プランナー' ? '<i class="fa-solid fa-user-tie"></i>' : '先'; const iconBg = msg['送信者区分'] === 'プランナー' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'; const bubbleColor = isPublic ? "bg-white text-gray-800 border-gray-100 border" : "bg-gray-100 text-gray-600 border-gray-400 border-2 border-dashed shadow-none"; msgHtml = `<div class="flex items-end gap-2 mb-6 animate-[fadeIn_0.3s_ease-out]"><div class="w-8 h-8 rounded-full ${iconBg} flex items-center justify-center font-bold text-sm shrink-0">${iconStr}</div><div class="max-w-[75%]"><div class="text-[11px] text-gray-500 mb-1 flex items-center">${senderName} - ${timeString} ${controlsHtml}</div><div class="${bubbleColor} p-3 rounded-2xl rounded-bl-none shadow-sm text-sm whitespace-pre-wrap">${msg['メッセージ内容']}</div></div></div>`; } timeline.insertAdjacentHTML('beforeend', msgHtml); timeline.scrollTop = timeline.scrollHeight; }
     </script>
 </body>
 </html>
