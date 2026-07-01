@@ -129,7 +129,7 @@
         const GAS_API_URL = "https://script.google.com/macros/s/AKfycbxA7rzs1QyhAhA8GQgB97yEMppgvAZVKtFI7EYxY_PfoaAkTBlsnF24_xmKka9Ld8rLAw/exec";
         
         let currentThreadId = null; 
-        let appData = { consultations: [], messages: [] }; 
+        let appData = { consultations: [], messages: [], planners: [] };
         let currentUser = null; 
         let currentGeneratedSummary = ""; 
         let currentTab = 'my'; 
@@ -194,17 +194,20 @@
                 if(result.status === "success") {
                     appData.consultations = result.data.consultations || [];
                     appData.messages = result.data.messages || [];
+                    appData.planners = result.data.planners || []; // ★この1行を追加
+                    
                     if(currentUser) renderThreadList();
                 }
             } catch (error) { console.error("通信エラー:", error); }
         }
 
+        // ★ リスト描画処理（新着バッジ、ソート機能、対応者表示を追加）
         function renderThreadList() {
             const threadList = document.getElementById('thread-list');
             threadList.innerHTML = ''; 
             const searchWord = document.getElementById('search-input').value.toLowerCase();
             
-            let displayList = appData.consultations;
+            let displayList = [...appData.consultations]; // 配列をコピー
             if (currentTab === 'my') {
                 if (currentUser.role === 'teacher') displayList = displayList.filter(c => c['作成者(先生ID)'] === currentUser.id);
             } else if (currentTab === 'public') {
@@ -214,27 +217,93 @@
             if (searchWord) {
                 displayList = displayList.filter(c => (c['タイトル/概要'] || '').toLowerCase().includes(searchWord) || (c['公開用テキスト'] || '').toLowerCase().includes(searchWord));
             }
-            displayList.sort((a, b) => b['スレッドID'].localeCompare(a['スレッドID']));
+
+            // 並び替えロジック
+            displayList.sort((a, b) => {
+                if (currentUser.role === 'planner' && currentTab === 'my') {
+                    const aUnread = appData.messages.some(m => m['紐づくスレッドID'] === a['スレッドID'] && m['送信者区分'] === '先生' && m['既読ステータス'] !== '既読');
+                    const bUnread = appData.messages.some(m => m['紐づくスレッドID'] === b['スレッドID'] && m['送信者区分'] === '先生' && m['既読ステータス'] !== '既読');
+                    if (aUnread && !bUnread) return -1;
+                    if (!aUnread && bUnread) return 1;
+                }
+                return b['スレッドID'].localeCompare(a['スレッドID']);
+            });
 
             if(displayList.length === 0) { threadList.innerHTML = `<div class="text-gray-500 text-center p-4 text-sm">該当するデータがありません。</div>`; return; }
 
             displayList.forEach(cons => {
                 const isSelected = (cons['スレッドID'] === currentThreadId) ? 'bg-blue-100 border-l-4 border-blue-500' : 'hover:bg-blue-50 border-l-4 border-transparent';
                 const icon = currentTab === 'public' ? '📖' : '💬';
+                
+                // 未読バッジの判定
+                let unreadBadge = '';
+                if (currentUser.role === 'planner' && currentTab === 'my') {
+                    const hasUnread = appData.messages.some(m => m['紐づくスレッドID'] === cons['スレッドID'] && m['送信者区分'] === '先生' && m['既読ステータス'] !== '既読');
+                    if (hasUnread) {
+                        unreadBadge = `<span class="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full ml-1 animate-pulse shrink-0">新着</span>`;
+                    }
+                }
+
+                // ★ 最終対応者の判定（プランナーのみ表示）
+                let responderBadge = '';
+                if (currentUser.role === 'planner' && currentTab === 'my') {
+                    const threadMsgs = appData.messages.filter(m => m['紐づくスレッドID'] === cons['スレッドID']);
+                    const plannerMsgs = threadMsgs.filter(m => m['送信者区分'] === 'プランナー');
+                    
+                    if (plannerMsgs.length > 0) {
+                        plannerMsgs.sort((a, b) => new Date(b['送信日時']) - new Date(a['送信日時']));
+                        const lastPlannerId = plannerMsgs[0]['送信者ID'];
+                        
+                        // ★ 追加：プランナーIDから氏名を検索して変換する
+                        const plannerObj = appData.planners.find(p => p['プランナーID'] === lastPlannerId);
+                        const plannerName = plannerObj ? plannerObj['氏名'] : lastPlannerId;
+                        
+                        // IDの代わりに氏名（plannerName）を表示するように修正
+                        responderBadge = `<span class="bg-blue-100 text-blue-700 border border-blue-200 text-[10px] px-1.5 py-0.5 rounded ml-1 shrink-0" title="最終対応者"><i class="fa-solid fa-user-check"></i> ${plannerName}</span>`;
+                    } else {
+                        responderBadge = `<span class="bg-gray-100 text-gray-500 border border-gray-200 text-[10px] px-1.5 py-0.5 rounded ml-1 shrink-0">未対応</span>`;
+                    }
+                }
+
                 const html = `
                 <div onclick="selectThread('${cons['スレッドID']}')" class="p-3 border-b border-gray-100 cursor-pointer transition mb-1 rounded ${isSelected}">
-                    <div class="font-bold text-sm text-gray-700 mb-1">${icon} ${cons['タイトル/概要'] || 'タイトルなし'}</div>
-                    <div class="flex justify-between items-center"><span class="text-xs text-gray-500">ID: ${cons['スレッドID']}</span><span class="bg-gray-100 text-gray-600 text-[10px] px-2 py-0.5 rounded-full font-bold">${cons['ステータス']}</span></div>
+                    <div class="font-bold text-sm text-gray-700 mb-1 flex items-center flex-wrap gap-y-1">
+                        ${icon} <span class="truncate ml-1 max-w-[150px]">${cons['タイトル/概要'] || 'タイトルなし'}</span> 
+                        ${unreadBadge}
+                        ${responderBadge}
+                    </div>
+                    <div class="flex justify-between items-center mt-1">
+                        <span class="text-xs text-gray-500">ID: ${cons['スレッドID']}</span>
+                        <span class="bg-gray-100 text-gray-600 text-[10px] px-2 py-0.5 rounded-full font-bold">${cons['ステータス']}</span>
+                    </div>
                 </div>`;
                 threadList.insertAdjacentHTML('beforeend', html);
             });
         }
 
+        // ★ スレッドを選択した時の処理（既読化APIコールを追加）
         function selectThread(threadId) {
             currentThreadId = threadId;
             const targetThread = appData.consultations.find(c => c['スレッドID'] === threadId);
             document.getElementById('current-thread-title').textContent = targetThread ? targetThread['タイトル/概要'] : '不明なスレッド';
-            renderThreadList();
+            
+            // ★ プランナーがスレッドを開いた時、未読メッセージがあれば「既読」にする処理
+            if (currentUser.role === 'planner') {
+                const unreadMsgs = appData.messages.filter(m => m['紐づくスレッドID'] === threadId && m['送信者区分'] === '先生' && m['既読ステータス'] !== '既読');
+                if (unreadMsgs.length > 0) {
+                    // 1. まず画面（ローカルデータ）上ですぐに既読にする
+                    unreadMsgs.forEach(m => m['既読ステータス'] = '既読');
+                    // 2. 裏側でGASにAPIを投げてシートを更新する（非同期）
+                    fetch(GAS_API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain' },
+                        body: JSON.stringify({ action: "markAsRead", payload: { threadId: threadId } })
+                    }).catch(e => console.error("既読処理に失敗:", e));
+                }
+            }
+
+            renderThreadList(); // バッジを消してハイライトを更新するため再描画
+
             const chatArea = document.getElementById('main-chat-area'); const qaArea = document.getElementById('main-qa-area'); const toggleBtns = document.getElementById('view-toggle-btns');
             
             if (currentTab === 'public' && currentUser.role === 'teacher') {
@@ -256,74 +325,99 @@
             }
         }
 
-        function switchViewMode(mode) {
-            const chatArea = document.getElementById('main-chat-area'); const qaArea = document.getElementById('main-qa-area'); const btnChat = document.getElementById('btn-view-chat'); const btnQa = document.getElementById('btn-view-qa');
-            if (mode === 'chat') {
-                chatArea.classList.remove('hidden'); chatArea.classList.add('flex'); qaArea.classList.add('hidden'); qaArea.classList.remove('flex');
-                btnChat.className = "px-3 py-1 bg-white shadow rounded text-blue-600"; btnQa.className = "px-3 py-1 text-gray-500 hover:text-gray-700";
-            } else {
-                chatArea.classList.add('hidden'); chatArea.classList.remove('flex'); qaArea.classList.remove('hidden'); qaArea.classList.add('flex');
-                btnQa.className = "px-3 py-1 bg-white shadow rounded text-blue-600"; btnChat.className = "px-3 py-1 text-gray-500 hover:text-gray-700";
-            }
-        }
+        function switchViewMode(mode) { const chatArea = document.getElementById('main-chat-area'); const qaArea = document.getElementById('main-qa-area'); const btnChat = document.getElementById('btn-view-chat'); const btnQa = document.getElementById('btn-view-qa'); if (mode === 'chat') { chatArea.classList.remove('hidden'); chatArea.classList.add('flex'); qaArea.classList.add('hidden'); qaArea.classList.remove('flex'); btnChat.className = "px-3 py-1 bg-white shadow rounded text-blue-600"; btnQa.className = "px-3 py-1 text-gray-500 hover:text-gray-700"; } else { chatArea.classList.add('hidden'); chatArea.classList.remove('flex'); qaArea.classList.remove('hidden'); qaArea.classList.add('flex'); btnQa.className = "px-3 py-1 bg-white shadow rounded text-blue-600"; btnChat.className = "px-3 py-1 text-gray-500 hover:text-gray-700"; } }
 
-        function openNewThreadModal() { 
-            document.getElementById('new-thread-title').value = ''; 
-            document.getElementById('new-thread-message').value = ''; 
-            document.getElementById('suggest-area').classList.add('hidden'); // サジェストをリセット
-            document.getElementById('new-thread-modal').classList.remove('hidden'); 
-        }
+        function openNewThreadModal() { document.getElementById('new-thread-title').value = ''; document.getElementById('new-thread-message').value = ''; document.getElementById('suggest-area').classList.add('hidden'); document.getElementById('new-thread-modal').classList.remove('hidden'); }
         function closeModal(modalId) { document.getElementById(modalId).classList.add('hidden'); }
 
-        // ★新規追加：入力のたびにサジェストを検索する処理
-        function checkSuggests() {
-            const input = document.getElementById('new-thread-title').value.trim().toLowerCase();
-            const suggestArea = document.getElementById('suggest-area');
-            const suggestList = document.getElementById('suggest-list');
-            
-            // 2文字未満ならサジェストしない
-            if (input.length < 2) {
-                suggestArea.classList.add('hidden');
-                return;
-            }
-            
-            // 公開済みの事例（QA記事）の中から、タイトルまたは内容に入力文字が含まれているものを探す
-            const hits = appData.consultations.filter(c => 
-                c['公開ステータス'] === 'Summary' && 
-                ((c['タイトル/概要'] || '').toLowerCase().includes(input) || (c['公開用テキスト'] || '').toLowerCase().includes(input))
-            );
-            
-            if (hits.length > 0) {
-                suggestList.innerHTML = '';
-                hits.forEach(hit => {
-                    // クリックしたら openSuggestedThread() を呼ぶようにする
-                    const li = `<li onclick="openSuggestedThread('${hit['スレッドID']}')" class="cursor-pointer text-blue-600 hover:bg-blue-100 p-1.5 rounded truncate transition"><i class="fa-solid fa-caret-right mr-1 text-gray-400"></i>${hit['タイトル/概要']}</li>`;
-                    suggestList.insertAdjacentHTML('beforeend', li);
-                });
-                suggestArea.classList.remove('hidden');
-            } else {
-                suggestArea.classList.add('hidden');
-            }
-        }
+        function checkSuggests() { const input = document.getElementById('new-thread-title').value.trim().toLowerCase(); const suggestArea = document.getElementById('suggest-area'); const suggestList = document.getElementById('suggest-list'); if (input.length < 2) { suggestArea.classList.add('hidden'); return; } const hits = appData.consultations.filter(c => c['公開ステータス'] === 'Summary' && ((c['タイトル/概要'] || '').toLowerCase().includes(input) || (c['公開用テキスト'] || '').toLowerCase().includes(input))); if (hits.length > 0) { suggestList.innerHTML = ''; hits.forEach(hit => { const li = `<li onclick="openSuggestedThread('${hit['スレッドID']}')" class="cursor-pointer text-blue-600 hover:bg-blue-100 p-1.5 rounded truncate transition"><i class="fa-solid fa-caret-right mr-1 text-gray-400"></i>${hit['タイトル/概要']}</li>`; suggestList.insertAdjacentHTML('beforeend', li); }); suggestArea.classList.remove('hidden'); } else { suggestArea.classList.add('hidden'); } }
+        function openSuggestedThread(threadId) { closeModal('new-thread-modal'); switchTab('public'); selectThread(threadId); }
 
-        // ★新規追加：サジェストをクリックした時に、記事にジャンプする処理
-        function openSuggestedThread(threadId) {
-            closeModal('new-thread-modal'); // モーダルを閉じる
-            switchTab('public'); // 自動的に「みんなの事例」タブへ移動
-            selectThread(threadId); // 該当の記事を開く
-        }
-
-        async function createNewThread() { const title = document.getElementById('new-thread-title').value.trim(); const message = document.getElementById('new-thread-message').value.trim(); if(!title || !message) { alert("タイトルと最初のメッセージを入力してください。"); return; } const btn = document.getElementById('create-thread-submit-btn'); btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 送信中...'; const payload = { action: "createNewThread", payload: { title: title, messageContent: message, senderType: "先生", senderId: currentUser.id } }; try { const response = await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) }); const result = await response.json(); if(result.status === "success") { appData.consultations.push(result.data.newConsultation); result.data.newMessage['公開対象フラグ'] = false; appData.messages.push(result.data.newMessage); closeModal('new-thread-modal'); selectThread(result.data.threadId); } else { alert("エラー: " + result.message); } } catch (error) { alert("通信エラーが発生しました"); } finally { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 送信する'; } }
-        
-        // （これ以降の既存関数はそのまま維持しています。省略なし）
+        async function createNewThread() { const title = document.getElementById('new-thread-title').value.trim(); const message = document.getElementById('new-thread-message').value.trim(); if(!title || !message) { alert("タイトルと最初のメッセージを入力してください。"); return; } const btn = document.getElementById('create-thread-submit-btn'); btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 送信中...'; const payload = { action: "createNewThread", payload: { title: title, messageContent: message, senderType: "先生", senderId: currentUser.id } }; try { const response = await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) }); const result = await response.json(); if(result.status === "success") { appData.consultations.push(result.data.newConsultation); result.data.newMessage['公開対象フラグ'] = false; result.data.newMessage['既読ステータス'] = ''; appData.messages.push(result.data.newMessage); closeModal('new-thread-modal'); selectThread(result.data.threadId); } else { alert("エラー: " + result.message); } } catch (error) { alert("通信エラーが発生しました"); } finally { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 送信する'; } }
         function refreshChatTimeline() { const threadMessages = appData.messages.filter(m => m['紐づくスレッドID'] === currentThreadId); const timeline = document.getElementById('chat-timeline'); timeline.innerHTML = ''; if (threadMessages.length === 0) { timeline.innerHTML = `<div class="flex justify-center items-center h-full text-gray-400"><span class="text-sm">まだメッセージがありません</span></div>`; return; } threadMessages.forEach(msg => { appendMessageToTimeline(msg); }); }
-        async function sendRealMessage() { if (!currentThreadId) return; const input = document.getElementById('message-input'); const button = document.getElementById('send-button'); const text = input.value.trim(); if (!text) return; input.disabled = true; button.disabled = true; const senderType = currentUser.role === 'planner' ? 'プランナー' : '先生'; const payload = { action: "sendMessage", payload: { threadId: currentThreadId, senderType: senderType, senderId: currentUser.id, messageContent: text } }; try { const response = await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) }); const result = await response.json(); if(result.status === "success") { const newMsg = { 'メッセージID': result.data.messageId || ("MSG_" + Date.now()), '紐づくスレッドID': currentThreadId, '送信者区分': senderType, '送信者ID': currentUser.id, 'メッセージ内容': text, '送信日時': new Date().toISOString(), '公開対象フラグ': false }; appData.messages.push(newMsg); refreshChatTimeline(); input.value = ''; } } catch (error) { alert("通信エラーが発生しました"); } finally { input.disabled = false; button.disabled = false; input.focus(); } }
+        
+        async function sendRealMessage() { if (!currentThreadId) return; const input = document.getElementById('message-input'); const button = document.getElementById('send-button'); const text = input.value.trim(); if (!text) return; input.disabled = true; button.disabled = true; const senderType = currentUser.role === 'planner' ? 'プランナー' : '先生'; const payload = { action: "sendMessage", payload: { threadId: currentThreadId, senderType: senderType, senderId: currentUser.id, messageContent: text } }; try { const response = await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) }); const result = await response.json(); if(result.status === "success") { const newMsg = { 'メッセージID': result.data.messageId || ("MSG_" + Date.now()), '紐づくスレッドID': currentThreadId, '送信者区分': senderType, '送信者ID': currentUser.id, 'メッセージ内容': text, '送信日時': new Date().toISOString(), '公開対象フラグ': false, '既読ステータス': '' }; appData.messages.push(newMsg); refreshChatTimeline(); input.value = ''; } } catch (error) { alert("通信エラーが発生しました"); } finally { input.disabled = false; button.disabled = false; input.focus(); } }
         async function callGeminiSummary() { if (!currentThreadId) return; const threadMessages = appData.messages.filter(m => m['紐づくスレッドID'] === currentThreadId && (m['公開対象フラグ'] === true || m['公開対象フラグ'] === 'TRUE' || m['公開対象フラグ'] === 'true')); if (threadMessages.length === 0) return alert("公開対象に設定されているメッセージがありません。"); let realChatHistory = ""; threadMessages.forEach(msg => { realChatHistory += `${msg['送信者区分']}: ${msg['メッセージ内容']}\n`; }); const modal = document.getElementById('ai-modal'); const content = document.getElementById('ai-content'); const saveBtn = document.getElementById('save-summary-btn'); modal.classList.remove('hidden'); saveBtn.classList.add('hidden'); content.innerHTML = `<div class="flex flex-col justify-center items-center h-full text-purple-500 gap-3"><div class="loader"></div><span class="text-sm font-bold animate-pulse">Gemini 2.5 Flashで事例を自動生成中...</span></div>`; try { const response = await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: "generateSummary", payload: { chatHistory: realChatHistory } }) }); const result = await response.json(); if (result.status === "success") { currentGeneratedSummary = result.data.summaryText; content.innerHTML = currentGeneratedSummary.replace(/\n/g, '<br>'); saveBtn.classList.remove('hidden'); saveBtn.classList.add('flex'); } else { content.innerHTML = `<div class="text-red-500 p-4">エラー: ${result.message}</div>`; } } catch (error) { content.innerHTML = `<div class="text-red-500 p-4">通信エラーが発生しました</div>`; } }
         async function saveAISummary() { if (!currentThreadId || !currentGeneratedSummary) return; const btn = document.getElementById('save-summary-btn'); btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 保存中...'; try { const response = await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: "saveSummary", payload: { threadId: currentThreadId, summaryText: currentGeneratedSummary } }) }); const result = await response.json(); if(result.status === "success") { alert("事例として公開設定を保存しました！"); closeModal('ai-modal'); const target = appData.consultations.find(c => c['スレッドID'] === currentThreadId); if(target){ target['公開ステータス'] = 'Summary'; target['公開用テキスト'] = currentGeneratedSummary; } selectThread(currentThreadId); } else { alert("保存エラー: " + result.message); } } catch (error) { alert("通信エラーが発生しました"); } finally { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> 事例として保存・公開'; } }
         async function toggleMsgVisibility(msgId) { const msgIndex = appData.messages.findIndex(m => m['メッセージID'] === msgId); if (msgIndex === -1) return; const currentFlag = appData.messages[msgIndex]['公開対象フラグ']; appData.messages[msgIndex]['公開対象フラグ'] = !(currentFlag === true || currentFlag === 'TRUE' || currentFlag === 'true'); refreshChatTimeline(); try { await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: "toggleMessageVisibility", payload: { messageId: msgId } }) }); } catch(e) { console.error("設定の保存に失敗しました"); } }
         function openEditMessageModal(msgId) { const msg = appData.messages.find(m => m['メッセージID'] === msgId); if(!msg) return; document.getElementById('edit-message-id').value = msgId; document.getElementById('edit-message-content').value = msg['メッセージ内容']; document.getElementById('edit-message-modal').classList.remove('hidden'); }
         async function saveEditedMessage() { const msgId = document.getElementById('edit-message-id').value; const newContent = document.getElementById('edit-message-content').value.trim(); if(!newContent) return; const btn = document.getElementById('save-edit-btn'); btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 保存中...'; try { const payload = { action: "updateMessageContent", payload: { messageId: msgId, newContent: newContent } }; const response = await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) }); const result = await response.json(); if(result.status === "success") { const msgIndex = appData.messages.findIndex(m => m['メッセージID'] === msgId); if(msgIndex !== -1) appData.messages[msgIndex]['メッセージ内容'] = newContent; refreshChatTimeline(); closeModal('edit-message-modal'); } else { alert("エラー: " + result.message); } } catch (error) { alert("通信エラーが発生しました"); } finally { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-save"></i> 修正を保存'; } }
-        function appendMessageToTimeline(msg) { const timeline = document.getElementById('chat-timeline'); const isMe = (msg['送信者ID'] === currentUser.id); const senderName = isMe ? 'あなた' : (msg['送信者区分'] === 'プランナー' ? 'プランナー' : '先生'); const dateObj = new Date(msg['送信日時']); const timeString = isNaN(dateObj) ? '' : dateObj.toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'}); const isPublic = (msg['公開対象フラグ'] === true || msg['公開対象フラグ'] === 'TRUE' || msg['公開対象フラグ'] === 'true'); let controlsHtml = ""; if (currentUser.role === 'planner') { const icon = isPublic ? '<i class="fa-solid fa-eye"></i> 公開中' : '<i class="fa-solid fa-eye-slash"></i> 非公開'; const color = isPublic ? 'text-blue-600 bg-blue-100' : 'text-gray-600 bg-gray-200'; controlsHtml = `<div class="flex gap-2 ml-3"><button onclick="toggleMsgVisibility('${msg['メッセージID']}')" class="text-[10px] font-bold ${color} hover:opacity-70 px-2 py-0.5 rounded shadow-sm transition">${icon}</button><button onclick="openEditMessageModal('${msg['メッセージID']}')" class="text-[10px] font-bold text-gray-600 bg-gray-100 hover:bg-gray-300 px-2 py-0.5 rounded shadow-sm transition"><i class="fa-solid fa-pen"></i> 修正</button></div>`; } let msgHtml = ""; if (isMe) { const bubbleColor = isPublic ? "bg-blue-500 text-white border-none" : "bg-slate-500 text-gray-50 border-2 border-dashed border-slate-700 shadow-none"; msgHtml = `<div class="flex items-end gap-2 justify-end mb-6 animate-[fadeIn_0.3s_ease-out]"><div class="max-w-[75%] flex flex-col items-end"><div class="text-[11px] text-gray-500 mb-1 flex items-center">${senderName} - ${timeString} ${controlsHtml}</div><div class="${bubbleColor} p-3 rounded-2xl rounded-br-none shadow-sm text-sm whitespace-pre-wrap">${msg['メッセージ内容']}</div></div></div>`; } else { const iconStr = msg['送信者区分'] === 'プランナー' ? '<i class="fa-solid fa-user-tie"></i>' : '先'; const iconBg = msg['送信者区分'] === 'プランナー' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'; const bubbleColor = isPublic ? "bg-white text-gray-800 border-gray-100 border" : "bg-gray-100 text-gray-600 border-gray-400 border-2 border-dashed shadow-none"; msgHtml = `<div class="flex items-end gap-2 mb-6 animate-[fadeIn_0.3s_ease-out]"><div class="w-8 h-8 rounded-full ${iconBg} flex items-center justify-center font-bold text-sm shrink-0">${iconStr}</div><div class="max-w-[75%]"><div class="text-[11px] text-gray-500 mb-1 flex items-center">${senderName} - ${timeString} ${controlsHtml}</div><div class="${bubbleColor} p-3 rounded-2xl rounded-bl-none shadow-sm text-sm whitespace-pre-wrap">${msg['メッセージ内容']}</div></div></div>`; } timeline.insertAdjacentHTML('beforeend', msgHtml); timeline.scrollTop = timeline.scrollHeight; }
+
+        // ★ 吹き出しを描画する関数（所属チームによって左右を賢く振り分ける）
+        function appendMessageToTimeline(msg) {
+            const timeline = document.getElementById('chat-timeline');
+            if(timeline.innerText.includes("メッセージがありません") || timeline.innerText.includes("選択してください")) timeline.innerHTML = ''; 
+            
+            const isMe = (msg['送信者ID'] === currentUser.id);
+            
+            // ★ 新規追加：ログインユーザーと同じ「チーム（区分）」かどうかを判定する
+            let isMySide = false;
+            if (currentUser.role === 'planner' && msg['送信者区分'] === 'プランナー') {
+                isMySide = true; // プランナーログイン時は、プランナー全員が右側
+            } else if (currentUser.role === 'teacher' && msg['送信者区分'] === '先生') {
+                isMySide = true; // 先生ログイン時は、先生（自分）が右側
+            }
+            
+            // 送信者の名前を決定するロジック
+            let senderName = '';
+            if (isMe) {
+                senderName = 'あなた';
+            } else if (msg['送信者区分'] === 'プランナー') {
+                const plannerObj = (appData.planners && appData.planners.length > 0) 
+                    ? appData.planners.find(p => p['プランナーID'] === msg['送信者ID']) 
+                    : null;
+                senderName = plannerObj ? plannerObj['氏名'] : `プランナー (${msg['送信者ID']})`;
+            } else {
+                senderName = `先生 (${msg['送信者ID']})`; 
+            }
+
+            const dateObj = new Date(msg['送信日時']);
+            const timeString = isNaN(dateObj) ? '' : dateObj.toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'});
+            
+            const isPublic = (msg['公開対象フラグ'] === true || msg['公開対象フラグ'] === 'TRUE' || msg['公開対象フラグ'] === 'true');
+            
+            let controlsHtml = "";
+            if (currentUser.role === 'planner') {
+                const icon = isPublic ? '<i class="fa-solid fa-eye"></i> 公開中' : '<i class="fa-solid fa-eye-slash"></i> 非公開';
+                const color = isPublic ? 'text-blue-600 bg-blue-100' : 'text-gray-600 bg-gray-200';
+                controlsHtml = `
+                    <div class="flex gap-2 ml-3">
+                        <button onclick="toggleMsgVisibility('${msg['メッセージID']}')" class="text-[10px] font-bold ${color} hover:opacity-70 px-2 py-0.5 rounded shadow-sm transition">${icon}</button>
+                        <button onclick="openEditMessageModal('${msg['メッセージID']}')" class="text-[10px] font-bold text-gray-600 bg-gray-100 hover:bg-gray-300 px-2 py-0.5 rounded shadow-sm transition"><i class="fa-solid fa-pen"></i> 修正</button>
+                    </div>`;
+            }
+
+            let msgHtml = "";
+            
+            // ★ 判定を isMe から isMySide（自分のチームかどうか）に変更
+            if (isMySide) {
+                // 【右側】自分、または味方チームの吹き出し
+                const bubbleColor = isPublic ? "bg-blue-500 text-white border-none" : "bg-slate-500 text-gray-50 border-2 border-dashed border-slate-700 shadow-none";
+                msgHtml = `
+                    <div class="flex items-end gap-2 justify-end mb-6 animate-[fadeIn_0.3s_ease-out]">
+                        <div class="max-w-[75%] flex flex-col items-end">
+                            <div class="text-[11px] text-gray-500 mb-1 flex items-center">${senderName} - ${timeString} ${controlsHtml}</div>
+                            <div class="${bubbleColor} p-3 rounded-2xl rounded-br-none shadow-sm text-sm whitespace-pre-wrap">${msg['メッセージ内容']}</div>
+                        </div>
+                    </div>`;
+            } else {
+                // 【左側】相手チームの吹き出し
+                const iconStr = msg['送信者区分'] === 'プランナー' ? '<i class="fa-solid fa-user-tie"></i>' : '先';
+                const iconBg = msg['送信者区分'] === 'プランナー' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600';
+                const bubbleColor = isPublic ? "bg-white text-gray-800 border-gray-100 border" : "bg-gray-100 text-gray-600 border-gray-400 border-2 border-dashed shadow-none";
+
+                msgHtml = `
+                    <div class="flex items-end gap-2 mb-6 animate-[fadeIn_0.3s_ease-out]">
+                        <div class="w-8 h-8 rounded-full ${iconBg} flex items-center justify-center font-bold text-sm shrink-0">${iconStr}</div>
+                        <div class="max-w-[75%]">
+                            <div class="text-[11px] text-gray-500 mb-1 flex items-center"><span class="font-bold">${senderName}</span> <span class="ml-1">- ${timeString}</span> ${controlsHtml}</div>
+                            <div class="${bubbleColor} p-3 rounded-2xl rounded-bl-none shadow-sm text-sm whitespace-pre-wrap">${msg['メッセージ内容']}</div>
+                        </div>
+                    </div>`;
+            }
+            timeline.insertAdjacentHTML('beforeend', msgHtml); 
+            timeline.scrollTop = timeline.scrollHeight;
+        }
     </script>
 </body>
 </html>
