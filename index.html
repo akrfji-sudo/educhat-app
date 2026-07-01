@@ -103,6 +103,25 @@
                     </div>
                 </div>
             </div>
+
+            <div id="edit-message-modal" class="hidden absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div class="bg-white rounded-xl shadow-2xl p-6 w-[90%] max-w-lg">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-lg text-blue-600 flex items-center gap-2"><i class="fa-solid fa-pen"></i> メッセージの修正</h3>
+                        <button onclick="closeModal('edit-message-modal')" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+                    </div>
+                    <div class="space-y-2">
+                        <p class="text-xs text-gray-500">※個人情報などをマスク・修正して保存できます。</p>
+                        <input type="hidden" id="edit-message-id">
+                        <textarea id="edit-message-content" rows="6" class="w-full bg-gray-50 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                    </div>
+                    <div class="mt-6 flex justify-end gap-2">
+                        <button onclick="closeModal('edit-message-modal')" class="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">キャンセル</button>
+                        <button id="save-edit-btn" onclick="saveEditedMessage()" class="px-4 py-2 text-sm font-bold text-white bg-blue-500 rounded-lg hover:bg-blue-600 flex items-center gap-2"><i class="fa-solid fa-save"></i> 修正を保存</button>
+                    </div>
+                </div>
+            </div>
+
         </section>
     </main>
 
@@ -115,7 +134,7 @@
         let currentThreadId = null; 
         let appData = { consultations: [], messages: [] }; 
         let currentUser = null; 
-        let currentGeneratedSummary = ""; // ★AIが生成したテキストを一時保存する変数
+        let currentGeneratedSummary = ""; 
 
         window.onload = () => { if(GAS_API_URL.includes("ここに")) alert("GAS_API_URL を設定してください！"); loadInitialData(); };
 
@@ -139,11 +158,9 @@
             }
 
             if(appData.consultations.length > 0) renderThreadList(appData.consultations);
-            
             document.getElementById('chat-timeline').innerHTML = `<div class="flex justify-center items-center h-full text-gray-400"><span class="text-sm">左側のリストから相談を選択してください</span></div>`;
             document.getElementById('current-thread-title').textContent = "スレッドを選択してください";
-            document.getElementById('message-input').disabled = true;
-            document.getElementById('send-button').disabled = true;
+            document.getElementById('message-input').disabled = true; document.getElementById('send-button').disabled = true;
             currentThreadId = null;
         }
 
@@ -188,18 +205,15 @@
             document.getElementById('message-input').disabled = false; document.getElementById('send-button').disabled = false;
             renderThreadList(appData.consultations);
 
-            const threadMessages = appData.messages.filter(m => m['紐づくスレッドID'] === threadId);
+            refreshChatTimeline();
+        }
+
+        function refreshChatTimeline() {
+            const threadMessages = appData.messages.filter(m => m['紐づくスレッドID'] === currentThreadId);
             const timeline = document.getElementById('chat-timeline');
             timeline.innerHTML = ''; 
-
             if (threadMessages.length === 0) { timeline.innerHTML = `<div class="flex justify-center items-center h-full text-gray-400"><span class="text-sm">まだメッセージがありません</span></div>`; return; }
-            threadMessages.forEach(msg => {
-                const dateObj = new Date(msg['送信日時']);
-                const timeString = isNaN(dateObj) ? '' : dateObj.toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'});
-                const isMe = (msg['送信者ID'] === currentUser.id);
-                const senderName = isMe ? 'あなた' : (msg['送信者区分'] === 'プランナー' ? 'プランナー' : '先生');
-                appendMessageToTimeline(msg['メッセージ内容'], senderName, isMe, timeString, msg['送信者区分']);
-            });
+            threadMessages.forEach(msg => { appendMessageToTimeline(msg); });
         }
 
         async function sendRealMessage() {
@@ -215,10 +229,18 @@
                 const response = await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
                 const result = await response.json();
                 if(result.status === "success") {
-                    const timeString = new Date().toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'});
-                    appendMessageToTimeline(text, "あなた", true, timeString, senderType);
+                    const newMsg = {
+                        'メッセージID': result.data.messageId || ("MSG_" + Date.now()),
+                        '紐づくスレッドID': currentThreadId,
+                        '送信者区分': senderType,
+                        '送信者ID': currentUser.id,
+                        'メッセージ内容': text,
+                        '送信日時': new Date().toISOString(),
+                        '公開対象フラグ': false // ★新規送信時は「非公開(false)」をデフォルトにする
+                    };
+                    appData.messages.push(newMsg);
+                    refreshChatTimeline();
                     input.value = '';
-                    appData.messages.push({ '紐づくスレッドID': currentThreadId, '送信者区分': senderType, '送信者ID': currentUser.id, 'メッセージ内容': text, '送信日時': new Date().toISOString() });
                 }
             } catch (error) { alert("通信エラーが発生しました"); } finally { input.disabled = false; button.disabled = false; input.focus(); }
         }
@@ -238,7 +260,9 @@
                 const response = await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
                 const result = await response.json();
                 if(result.status === "success") {
-                    appData.consultations.push(result.data.newConsultation); appData.messages.push(result.data.newMessage);
+                    appData.consultations.push(result.data.newConsultation); 
+                    result.data.newMessage['公開対象フラグ'] = false; // ★新規スレッド作成時も「非公開」デフォルト
+                    appData.messages.push(result.data.newMessage);
                     closeModal('new-thread-modal'); selectThread(result.data.threadId);
                 } else { alert("エラー: " + result.message); }
             } catch (error) { alert("通信エラーが発生しました"); } finally { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 送信する'; }
@@ -246,81 +270,131 @@
 
         async function callGeminiSummary() {
             if (!currentThreadId) return;
-            const threadMessages = appData.messages.filter(m => m['紐づくスレッドID'] === currentThreadId);
-            if (threadMessages.length === 0) return alert("要約するメッセージがありません。");
+            const threadMessages = appData.messages.filter(m => m['紐づくスレッドID'] === currentThreadId && (m['公開対象フラグ'] === true || m['公開対象フラグ'] === 'TRUE' || m['公開対象フラグ'] === 'true'));
+            if (threadMessages.length === 0) return alert("公開対象に設定されているメッセージがありません。");
 
             let realChatHistory = ""; threadMessages.forEach(msg => { realChatHistory += `${msg['送信者区分']}: ${msg['メッセージ内容']}\n`; });
-
-            const modal = document.getElementById('ai-modal');
-            const content = document.getElementById('ai-content');
-            const saveBtn = document.getElementById('save-summary-btn');
-            
-            modal.classList.remove('hidden');
-            saveBtn.classList.add('hidden'); // 生成中は保存ボタンを隠す
+            const modal = document.getElementById('ai-modal'); const content = document.getElementById('ai-content'); const saveBtn = document.getElementById('save-summary-btn');
+            modal.classList.remove('hidden'); saveBtn.classList.add('hidden');
             content.innerHTML = `<div class="flex flex-col justify-center items-center h-full text-purple-500 gap-3"><div class="loader"></div><span class="text-sm font-bold animate-pulse">Gemini 2.5 Flashで事例を自動生成中...</span></div>`;
             
             try {
                 const response = await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: "generateSummary", payload: { chatHistory: realChatHistory } }) });
                 const result = await response.json();
                 if (result.status === "success") {
-                    currentGeneratedSummary = result.data.summaryText; // 生成されたテキストを保持
-                    content.innerHTML = currentGeneratedSummary;
-                    saveBtn.classList.remove('hidden'); // 生成が成功したら保存ボタンを表示
-                    saveBtn.classList.add('flex');
-                } else {
-                    content.innerHTML = `<div class="text-red-500 p-4">エラー: ${result.message}</div>`;
-                }
+                    currentGeneratedSummary = result.data.summaryText; content.innerHTML = currentGeneratedSummary;
+                    saveBtn.classList.remove('hidden'); saveBtn.classList.add('flex');
+                } else { content.innerHTML = `<div class="text-red-500 p-4">エラー: ${result.message}</div>`; }
             } catch (error) { content.innerHTML = `<div class="text-red-500 p-4">通信エラーが発生しました</div>`; }
         }
 
-        // ★新規追加：AI要約をデータベースに保存する処理
         async function saveAISummary() {
             if (!currentThreadId || !currentGeneratedSummary) return;
-            
-            const btn = document.getElementById('save-summary-btn');
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 保存中...';
-
-            const payload = {
-                action: "saveSummary",
-                payload: {
-                    threadId: currentThreadId,
-                    summaryText: currentGeneratedSummary
-                }
-            };
-
+            const btn = document.getElementById('save-summary-btn'); btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 保存中...';
             try {
-                const response = await fetch(GAS_API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain' },
-                    body: JSON.stringify(payload)
-                });
+                const response = await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: "saveSummary", payload: { threadId: currentThreadId, summaryText: currentGeneratedSummary } }) });
                 const result = await response.json();
-                if(result.status === "success") {
-                    alert("事例として公開設定を保存しました！\n（スプレッドシートをご確認ください）");
-                    closeModal('ai-modal');
-                } else {
-                    alert("保存エラー: " + result.message);
-                }
-            } catch (error) {
-                alert("通信エラーが発生しました");
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> 事例として保存・公開';
-            }
+                if(result.status === "success") { alert("事例として公開設定を保存しました！"); closeModal('ai-modal'); } else { alert("保存エラー: " + result.message); }
+            } catch (error) { alert("通信エラーが発生しました"); } finally { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> 事例として保存・公開'; }
         }
 
-        function appendMessageToTimeline(text, senderName, isMe, timeString, senderType) {
+        async function toggleMsgVisibility(msgId) {
+            const msgIndex = appData.messages.findIndex(m => m['メッセージID'] === msgId);
+            if (msgIndex === -1) return;
+            
+            const currentFlag = appData.messages[msgIndex]['公開対象フラグ'];
+            appData.messages[msgIndex]['公開対象フラグ'] = !(currentFlag === true || currentFlag === 'TRUE' || currentFlag === 'true');
+            refreshChatTimeline(); // 即座に再描画
+            
+            try { await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: "toggleMessageVisibility", payload: { messageId: msgId } }) }); } 
+            catch(e) { console.error("設定の保存に失敗しました"); }
+        }
+
+        // ★新規追加：編集モーダルを開く処理
+        function openEditMessageModal(msgId) {
+            const msg = appData.messages.find(m => m['メッセージID'] === msgId);
+            if(!msg) return;
+            document.getElementById('edit-message-id').value = msgId;
+            document.getElementById('edit-message-content').value = msg['メッセージ内容'];
+            document.getElementById('edit-message-modal').classList.remove('hidden');
+        }
+
+        // ★新規追加：修正したテキストをGASに保存する処理
+        async function saveEditedMessage() {
+            const msgId = document.getElementById('edit-message-id').value;
+            const newContent = document.getElementById('edit-message-content').value.trim();
+            if(!newContent) return;
+
+            const btn = document.getElementById('save-edit-btn');
+            btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 保存中...';
+
+            try {
+                const payload = { action: "updateMessageContent", payload: { messageId: msgId, newContent: newContent } };
+                const response = await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
+                const result = await response.json();
+                
+                if(result.status === "success") {
+                    // 内部のデータも更新して画面を再描画
+                    const msgIndex = appData.messages.findIndex(m => m['メッセージID'] === msgId);
+                    if(msgIndex !== -1) appData.messages[msgIndex]['メッセージ内容'] = newContent;
+                    refreshChatTimeline();
+                    closeModal('edit-message-modal');
+                } else { alert("エラー: " + result.message); }
+            } catch (error) { alert("通信エラーが発生しました"); } 
+            finally { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-save"></i> 修正を保存'; }
+        }
+
+        // ★視認性を高めたメッセージ描画関数（非公開時は破線＋グレー背景）
+        function appendMessageToTimeline(msg) {
             const timeline = document.getElementById('chat-timeline');
-            if(timeline.innerText.includes("メッセージがありません") || timeline.innerText.includes("選択してください")) timeline.innerHTML = ''; 
-            let msgHtml = "";
-            if (isMe) { msgHtml = `<div class="flex items-end gap-2 justify-end mb-6 animate-[fadeIn_0.3s_ease-out]"><div class="max-w-[75%] flex flex-col items-end"><div class="text-[11px] text-gray-500 mb-1 mr-1">${senderName} - ${timeString}</div><div class="bg-blue-500 text-white p-3 rounded-2xl rounded-br-none shadow-sm text-sm whitespace-pre-wrap">${text}</div></div></div>`; } 
-            else {
-                const iconStr = senderType === 'プランナー' ? '<i class="fa-solid fa-user-tie"></i>' : '先';
-                const iconBg = senderType === 'プランナー' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600';
-                msgHtml = `<div class="flex items-end gap-2 mb-6 animate-[fadeIn_0.3s_ease-out]"><div class="w-8 h-8 rounded-full ${iconBg} flex items-center justify-center font-bold text-sm shrink-0">${iconStr}</div><div class="max-w-[75%]"><div class="text-[11px] text-gray-500 mb-1 ml-1">${senderName} - ${timeString}</div><div class="bg-white p-3 rounded-2xl rounded-bl-none shadow-sm border border-gray-100 text-sm whitespace-pre-wrap">${text}</div></div></div>`;
+            
+            const isMe = (msg['送信者ID'] === currentUser.id);
+            const senderName = isMe ? 'あなた' : (msg['送信者区分'] === 'プランナー' ? 'プランナー' : '先生');
+            const dateObj = new Date(msg['送信日時']);
+            const timeString = isNaN(dateObj) ? '' : dateObj.toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'});
+            
+            const isPublic = (msg['公開対象フラグ'] === true || msg['公開対象フラグ'] === 'TRUE' || msg['公開対象フラグ'] === 'true');
+            
+            // プランナー専用のコントロールボタン（公開トグル ＋ 編集ボタン）
+            let controlsHtml = "";
+            if (currentUser.role === 'planner') {
+                const icon = isPublic ? '<i class="fa-solid fa-eye"></i> 公開中' : '<i class="fa-solid fa-eye-slash"></i> 非公開';
+                const color = isPublic ? 'text-blue-600 bg-blue-100' : 'text-gray-600 bg-gray-200';
+                controlsHtml = `
+                    <div class="flex gap-2 ml-3">
+                        <button onclick="toggleMsgVisibility('${msg['メッセージID']}')" class="text-[10px] font-bold ${color} hover:opacity-70 px-2 py-0.5 rounded shadow-sm transition">${icon}</button>
+                        <button onclick="openEditMessageModal('${msg['メッセージID']}')" class="text-[10px] font-bold text-gray-600 bg-gray-100 hover:bg-gray-300 px-2 py-0.5 rounded shadow-sm transition"><i class="fa-solid fa-pen"></i> 修正</button>
+                    </div>`;
             }
-            timeline.insertAdjacentHTML('beforeend', msgHtml); timeline.scrollTop = timeline.scrollHeight;
+
+            let msgHtml = "";
+            if (isMe) {
+                // 自分（右側）の吹き出し。公開時は青、非公開時は濃いグレー＆破線
+                const bubbleColor = isPublic ? "bg-blue-500 text-white border-none" : "bg-slate-500 text-gray-50 border-2 border-dashed border-slate-700 shadow-none";
+                msgHtml = `
+                    <div class="flex items-end gap-2 justify-end mb-6 animate-[fadeIn_0.3s_ease-out]">
+                        <div class="max-w-[75%] flex flex-col items-end">
+                            <div class="text-[11px] text-gray-500 mb-1 flex items-center">${senderName} - ${timeString} ${controlsHtml}</div>
+                            <div class="${bubbleColor} p-3 rounded-2xl rounded-br-none shadow-sm text-sm whitespace-pre-wrap">${msg['メッセージ内容']}</div>
+                        </div>
+                    </div>`;
+            } else {
+                // 相手（左側）の吹き出し。公開時は白、非公開時は薄いグレー＆破線
+                const iconStr = msg['送信者区分'] === 'プランナー' ? '<i class="fa-solid fa-user-tie"></i>' : '先';
+                const iconBg = msg['送信者区分'] === 'プランナー' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600';
+                const bubbleColor = isPublic ? "bg-white text-gray-800 border-gray-100 border" : "bg-gray-100 text-gray-600 border-gray-400 border-2 border-dashed shadow-none";
+
+                msgHtml = `
+                    <div class="flex items-end gap-2 mb-6 animate-[fadeIn_0.3s_ease-out]">
+                        <div class="w-8 h-8 rounded-full ${iconBg} flex items-center justify-center font-bold text-sm shrink-0">${iconStr}</div>
+                        <div class="max-w-[75%]">
+                            <div class="text-[11px] text-gray-500 mb-1 flex items-center">${senderName} - ${timeString} ${controlsHtml}</div>
+                            <div class="${bubbleColor} p-3 rounded-2xl rounded-bl-none shadow-sm text-sm whitespace-pre-wrap">${msg['メッセージ内容']}</div>
+                        </div>
+                    </div>`;
+            }
+            timeline.insertAdjacentHTML('beforeend', msgHtml); 
+            timeline.scrollTop = timeline.scrollHeight;
         }
     </script>
 </body>
